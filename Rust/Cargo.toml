@@ -1,0 +1,11 @@
+[package]
+name = "basketball_detector"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+opencv = { version = "0.92", features = ["highgui", "videoio", "imgproc"] }
+
+[profile.release]
+opt-level = 3
+lto = true

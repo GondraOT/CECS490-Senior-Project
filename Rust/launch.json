@@ -1,0 +1,44 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug Basketball Detector",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=basketball_detector",
+          "--package=basketball_detector"
+        ],
+        "filter": {
+          "name": "basketball_detector",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "sourceLanguages": ["rust"]
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Run Basketball Detector (Release)",
+      "cargo": {
+        "args": [
+          "build",
+          "--release",
+          "--bin=basketball_detector",
+          "--package=basketball_detector"
+        ],
+        "filter": {
+          "name": "basketball_detector",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "sourceLanguages": ["rust"]
+    }
+  ]
+}
