@@ -1,10 +1,10 @@
 // CECS490 Senior Project - Hoop IQ
 // Team 2 - Player Heatmap System
 // Christopher Hong, Gondra Kelly, Matthew Marguiles, Alfonso Mejia Vasquez, Carlos Orozco
-// IP Camera Player Detection & Heatmap Generation using the RLC-510WA
+// IP Camera Player Detection & Heatmap Generation
 
 use opencv::{
-    core::{self, Mat, Point, Rect, Scalar, Size, Vector, BORDER_DEFAULT},
+    core::{self, Mat, Point, Rect, Scalar, Size, Vector},
     dnn, imgcodecs, imgproc,
     prelude::*,
     videoio,
@@ -52,7 +52,7 @@ struct GameState {
     fps: f32,
     current_players: Vec<PlayerDetection>,
     player_history: Vec<PlayerDetection>,
-    heatmap_data: HashMap<(i32, i32), u32>, // Grid position -> count
+    heatmap_data: HashMap<(i32, i32), u32>,
     last_frame: Arc<RwLock<Vec<u8>>>,
     shot_data: Vec<ShotData>,
     makes_count: u64,
@@ -77,19 +77,16 @@ impl GameState {
     }
 
     fn add_player_detection(&mut self, detection: PlayerDetection) {
-        // Add to history
         self.player_history.push(detection.clone());
         if self.player_history.len() > 100 {
             self.player_history.remove(0);
         }
 
-        // Update heatmap with grid quantization (10x10 pixel grid cells)
         let grid_x = (detection.x / 10) * 10;
         let grid_y = (detection.y / 10) * 10;
         let grid_pos = (grid_x, grid_y);
-        
+
         *self.heatmap_data.entry(grid_pos).or_insert(0) += 1;
-        
         self.total_players_detected += 1;
     }
 
@@ -114,20 +111,17 @@ fn get_timestamp() -> u64 {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🏀 HOOP IQ - Player Heatmap System");
-    println!("📹 Reolink RLC-510WA IP Camera");
-    println!("CECS490 Senior Project\n");
+    println!("HOOP IQ - Player Heatmap System");
+    println!("CECS490 Senior Project - Team 2\n");
 
     let game_state = Arc::new(Mutex::new(GameState::new()));
     let frame_lock = Arc::clone(&game_state.lock().unwrap().last_frame);
 
-    // ESP32 listener for shot data integration
     let esp32_state = Arc::clone(&game_state);
     thread::spawn(move || {
         listen_to_esp32(esp32_state);
     });
 
-    // API server for frontend/mobile
     let api_state = Arc::clone(&game_state);
     let api_frame = Arc::clone(&frame_lock);
     thread::spawn(move || {
@@ -137,35 +131,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     thread::sleep(Duration::from_millis(1000));
 
     let local_ip = get_local_ip();
-    println!("🌐 API Server: http://{}:8080", local_ip);
-    println!("📡 Stream: http://{}:8080/api/stream", local_ip);
-    println!("🔥 Heatmap: http://{}:8080/api/heatmap\n", local_ip);
+    println!("API Server: http://{}:8080", local_ip);
+    println!("Stream: http://{}:8080/api/stream", local_ip);
+    println!("Heatmap: http://{}:8080/api/heatmap\n", local_ip);
 
-    // RTSP stream URL for Reolink RLC-510WA
-    // Format: rtsp://username:password@ip_address:554/h264Preview_01_main
-    let rtsp_url = "rtsp://admin:YOUR_PASSWORD@192.168.1.XXX:554/h264Preview_01_main";
-    
-    println!("📡 Connecting to IP camera...");
-    let mut cam = videoio::VideoCapture::from_file(rtsp_url, videoio::CAP_FFMPEG)?;
+    // Update with your camera password
+    let rtsp_url = "rtsp://admin:CHANGEME@192.168.4.2:554/cam/realmonitor?channel=1&subtype=0";
+
+    println!("Connecting to IP camera...");
+    let cam = videoio::VideoCapture::from_file(rtsp_url, videoio::CAP_FFMPEG)?;
 
     if !videoio::VideoCapture::is_opened(&cam)? {
-        eprintln!("❌ Could not connect to IP camera");
-        eprintln!("💡 Check:");
-        eprintln!("   - Camera IP address");
-        eprintln!("   - Username/password");
-        eprintln!("   - RTSP port (usually 554)");
-        eprintln!("   - Network connectivity");
+        eprintln!("ERROR: Could not connect to IP camera");
+        eprintln!("Check: Camera IP, password, RTSP port, WiFi connection");
         return Ok(());
     }
 
-    println!("✅ IP Camera connected!");
+    println!("Camera connected");
 
     let actual_width = cam.get(videoio::CAP_PROP_FRAME_WIDTH)?;
     let actual_height = cam.get(videoio::CAP_PROP_FRAME_HEIGHT)?;
     let actual_fps = cam.get(videoio::CAP_PROP_FPS)?;
 
     println!(
-        "📹 Stream: {}x{} @ {:.1} FPS\n",
+        "Stream: {}x{} @ {:.1} FPS\n",
         actual_width, actual_height, actual_fps
     );
 
@@ -176,13 +165,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    println!("🎯 Player detection active!\n");
+    println!("Player detection active\n");
 
     loop {
         thread::sleep(Duration::from_secs(5));
         if let Ok(state) = game_state.lock() {
             println!(
-                "📊 Frames: {} | Players: {} | Heatmap Points: {} | FPS: {:.1}",
+                "Frames: {} | Players: {} | Heatmap Points: {} | FPS: {:.1}",
                 state.frame_count,
                 state.total_players_detected,
                 state.heatmap_data.len(),
@@ -197,39 +186,35 @@ fn process_player_detection(
     state: Arc<Mutex<GameState>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut frame = Mat::default();
-    let mut blob = Mat::default();
+    //let mut blob = Mat::default();
+    let mut blob;
 
     let mut last_time = Instant::now();
     let mut frame_times = Vec::with_capacity(30);
     let mut detection_id: u64 = 0;
 
-    // Load YOLOv4-tiny model for person detection
-    // Download from: https://github.com/AlexeyAB/darknet
     let config = "yolov4-tiny.cfg";
     let weights = "yolov4-tiny.weights";
-    
-    println!("🤖 Loading YOLO model...");
+
+    println!("Loading YOLO model...");
     let mut net = match dnn::read_net_from_darknet(config, weights) {
         Ok(n) => {
-            println!("✅ YOLO model loaded");
+            println!("YOLO model loaded");
             n
         }
         Err(e) => {
-            eprintln!("❌ Failed to load YOLO model: {}", e);
-            eprintln!("💡 Download YOLOv4-tiny from:");
-            eprintln!("   https://github.com/AlexeyAB/darknet/releases");
+            eprintln!("ERROR: Failed to load YOLO model: {}", e);
+            eprintln!("Download: wget https://github.com/AlexeyAB/darknet/releases/download/darknet_yolo_v4_pre/yolov4-tiny.weights");
+            eprintln!("Download: wget https://raw.githubusercontent.com/AlexeyAB/darknet/master/cfg/yolov4-tiny.cfg");
             return Err(Box::new(e));
         }
     };
 
-    // Use CPU backend (or DNN_BACKEND_CUDA if you have GPU)
     net.set_preferable_backend(dnn::DNN_BACKEND_OPENCV)?;
     net.set_preferable_target(dnn::DNN_TARGET_CPU)?;
 
-    // Get output layer names
     let output_layers = net.get_unconnected_out_layers_names()?;
 
-    // JPEG encoding params
     let mut encode_params = Vector::<i32>::new();
     encode_params.push(imgcodecs::IMWRITE_JPEG_QUALITY);
     encode_params.push(70);
@@ -258,37 +243,24 @@ fn process_player_detection(
 
         frame_counter += 1;
         let timestamp = get_timestamp();
-
-        // Run detection every 3 frames for better performance
         let should_detect = frame_counter % 3 == 0;
 
         if should_detect {
             current_players.clear();
 
-            // Prepare blob for YOLO
-            let blob_size = Size::new(416, 416); // YOLOv4-tiny input size
+            let blob_size = Size::new(416, 416);
             let scale = 1.0 / 255.0;
             let mean = Scalar::new(0.0, 0.0, 0.0, 0.0);
             let swap_rb = true;
             let crop = false;
 
-            dnn::blob_from_image(
-                &frame,
-                &mut blob,
-                scale,
-                blob_size,
-                mean,
-                swap_rb,
-                crop,
-                core::CV_32F,
-            )?;
-
+            blob =
+                dnn::blob_from_image(&frame, scale, blob_size, mean, swap_rb, crop, core::CV_32F)?;
             net.set_input(&blob, "", 1.0, Scalar::default())?;
 
             let mut detections = Vector::<Mat>::new();
             net.forward(&mut detections, &output_layers)?;
 
-            // Process detections
             let frame_height = frame.rows();
             let frame_width = frame.cols();
 
@@ -297,26 +269,21 @@ fn process_player_detection(
                     let scores = detection_mat.row(i)?;
                     let scores_data = scores.data_typed::<f32>()?;
 
-                    // Find class with highest confidence
                     let mut max_score = 0.0f32;
                     let mut class_id = 0;
                     for j in 5..scores.cols() {
-                        let score = scores_data[j];
+                        let score = scores_data[j as usize];
                         if score > max_score {
                             max_score = score;
                             class_id = j - 5;
                         }
                     }
 
-                    // Class 0 is "person" in COCO dataset
                     if class_id == 0 && max_score > 0.5 {
                         let center_x = (scores_data[0] * frame_width as f32) as i32;
                         let center_y = (scores_data[1] * frame_height as f32) as i32;
                         let width = (scores_data[2] * frame_width as f32) as i32;
                         let height = (scores_data[3] * frame_height as f32) as i32;
-
-                        let x = center_x - width / 2;
-                        let y = center_y - height / 2;
 
                         detection_id += 1;
                         current_players.push(PlayerDetection {
@@ -333,33 +300,18 @@ fn process_player_detection(
             }
         }
 
-        // Draw player detections
         for player in &current_players {
-            let top_left = Point::new(
-                player.x - player.width / 2,
-                player.y - player.height / 2,
-            );
-            let bottom_right = Point::new(
-                player.x + player.width / 2,
-                player.y + player.height / 2,
-            );
+            let top_left = Point::new(player.x - player.width / 2, player.y - player.height / 2);
 
-            // Draw bounding box
             imgproc::rectangle(
                 &mut frame,
-                Rect::new(
-                    top_left.x,
-                    top_left.y,
-                    player.width,
-                    player.height,
-                ),
+                Rect::new(top_left.x, top_left.y, player.width, player.height),
                 Scalar::new(0.0, 255.0, 0.0, 0.0),
                 2,
                 imgproc::LINE_8,
                 0,
             )?;
 
-            // Draw center point for heatmap
             imgproc::circle(
                 &mut frame,
                 Point::new(player.x, player.y),
@@ -371,7 +323,6 @@ fn process_player_detection(
             )?;
         }
 
-        // FPS display
         imgproc::put_text(
             &mut frame,
             &format!("FPS: {:.1} | Players: {}", avg_fps, current_players.len()),
@@ -384,12 +335,10 @@ fn process_player_detection(
             false,
         )?;
 
-        // Encode frame
         let mut buf = Vector::new();
         imgcodecs::imencode(".jpg", &frame, &mut buf, &encode_params)?;
         let jpeg_data = buf.to_vec();
 
-        // Update state
         if let Ok(mut state_guard) = state.try_lock() {
             state_guard.frame_count += 1;
             state_guard.fps = avg_fps;
@@ -409,17 +358,17 @@ fn process_player_detection(
 }
 
 fn listen_to_esp32(state: Arc<Mutex<GameState>>) {
+    // USB Serial connection - tries both common serial ports
     let serial_ports = vec!["/dev/ttyUSB0", "/dev/ttyACM0"];
 
     for port in &serial_ports {
         if let Ok(file) = std::fs::OpenOptions::new().read(true).open(port) {
-            println!("📡 Listening to ESP32 on {}", port);
+            println!("ESP32 connected on {}", port);
             let reader = BufReader::new(file);
 
             for line in reader.lines() {
                 if let Ok(data) = line {
                     let data = data.trim();
-
                     if data.starts_with("RESULT:") {
                         parse_shot_result(&data, &state);
                     }
@@ -428,6 +377,7 @@ fn listen_to_esp32(state: Arc<Mutex<GameState>>) {
             return;
         }
     }
+    println!("WARNING: No ESP32 found - shot data integration disabled");
 }
 
 fn parse_shot_result(data: &str, state: &Arc<Mutex<GameState>>) {
@@ -477,12 +427,14 @@ fn parse_shot_result(data: &str, state: &Arc<Mutex<GameState>>) {
         } else if result == "MISSED" {
             state_guard.misses_count += 1;
         }
+
+        println!("Shot {} - {} ({})", shot_id, result, shot_type);
     }
 }
 
 fn start_api_server(state: Arc<Mutex<GameState>>, frame_lock: Arc<RwLock<Vec<u8>>>) {
     let listener = TcpListener::bind("0.0.0.0:8080").expect("Failed to bind");
-    println!("✅ API Server started");
+    println!("API Server started");
 
     for stream in listener.incoming() {
         if let Ok(stream) = stream {
@@ -557,7 +509,7 @@ fn send_camera_stream(stream: &mut TcpStream, frame_lock: Arc<RwLock<Vec<u8>>>) 
                 let _ = stream.flush();
             }
         }
-        thread::sleep(Duration::from_millis(33)); // ~30 FPS
+        thread::sleep(Duration::from_millis(33));
     }
 }
 
@@ -620,5 +572,5 @@ fn get_local_ip() -> String {
             }
         }
     }
-    "192.168.1.1".to_string()
+    "192.168.4.1".to_string()
 }
