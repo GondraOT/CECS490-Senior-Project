@@ -317,7 +317,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Start C922x heatmap camera (Camera 0)
-    let mut cam_heatmap = videoio::VideoCapture::new(0, videoio::CAP_V4L2)?;
+    let mut cam_heatmap = videoio::VideoCapture::from_file("/dev/video0", videoio::CAP_V4L2)?;
     if !videoio::VideoCapture::is_opened(&cam_heatmap)? {
         eprintln!("Could not open C922x heatmap camera");
         return Ok(());
