@@ -126,6 +126,7 @@ def stream_heatmap():
                 except Exception as e:
                     print(f"Stream error: {e}")
             time.sleep(0.016)  # 60 FPS
+    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/frame/basketball', methods=['GET'])
 def get_basketball_frame():
