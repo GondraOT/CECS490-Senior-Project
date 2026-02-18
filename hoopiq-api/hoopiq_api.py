@@ -126,8 +126,33 @@ def stream_heatmap():
                 except Exception as e:
                     print(f"Stream error: {e}")
             time.sleep(0.016)  # 60 FPS
+
+@app.route('/frame/basketball', methods=['GET'])
+def get_basketball_frame():
+    """Get latest basketball frame as JPEG"""
+    try:
+        if not latest_data['basketball_frame']:
+            return "No frame available", 404
+        
+        frame_data = base64.b64decode(latest_data['basketball_frame'])
+        return Response(frame_data, mimetype='image/jpeg')
     
-    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    except Exception as e:
+        return f"Error: {str(e)}", 500
+
+@app.route('/frame/heatmap', methods=['GET'])
+def get_heatmap_frame():
+    """Get latest heatmap frame as JPEG"""
+    try:
+        if not latest_data['heatmap_frame']:
+            return "No frame available", 404
+        
+        frame_data = base64.b64decode(latest_data['heatmap_frame'])
+        return Response(frame_data, mimetype='image/jpeg')
+    
+    except Exception as e:
+        return f"Error: {str(e)}", 500
+    
 @app.route('/health', methods=['GET'])
 def health_check():
     """Check if system is healthy"""
