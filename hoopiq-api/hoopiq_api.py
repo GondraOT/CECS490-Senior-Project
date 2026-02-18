@@ -99,7 +99,7 @@ def get_stats():
 
 @app.route('/stream/basketball', methods=['GET'])
 def stream_basketball():
-    """Stream basketball frames as MJPEG"""
+    """Stream basketball frames as MJPEG video"""
     def generate():
         while True:
             if latest_data['basketball_frame']:
@@ -109,14 +109,13 @@ def stream_basketball():
                            b'Content-Type: image/jpeg\r\n\r\n' + frame_data + b'\r\n')
                 except Exception as e:
                     print(f"Stream error: {e}")
-                    pass
-            time.sleep(0.033)  # 30 FPS (1/30 = 0.033 seconds)
+            time.sleep(0.033)  # 30 FPS
     
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/stream/heatmap', methods=['GET'])
 def stream_heatmap():
-    """Stream heatmap frames as MJPEG"""
+    """Stream heatmap frames as MJPEG video"""
     def generate():
         while True:
             if latest_data['heatmap_frame']:
@@ -126,11 +125,9 @@ def stream_heatmap():
                            b'Content-Type: image/jpeg\r\n\r\n' + frame_data + b'\r\n')
                 except Exception as e:
                     print(f"Stream error: {e}")
-                    pass
-            time.sleep(0.016)  # 60 FPS (1/60 = 0.016 seconds)
+            time.sleep(0.016)  # 60 FPS
     
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
 @app.route('/health', methods=['GET'])
 def health_check():
     """Check if system is healthy"""
