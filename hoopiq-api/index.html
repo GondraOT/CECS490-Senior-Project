@@ -573,7 +573,7 @@
                 <span class="fps-badge" id="b-fps-badge">-- fps</span>
             </div>
             <div class="stream-body">
-                <video id="basketball-img" autoplay muted playsinline></video>
+                <video id="basketball-img" autoplay muted playsinline disableRemotePlayback></video>
                 <div class="stream-placeholder" id="basketball-placeholder">
                     <div class="spinner"></div>
                     <span>Connecting to stream...</span>
@@ -588,7 +588,7 @@
                 <span class="fps-badge" id="h-fps-badge">-- fps</span>
             </div>
             <div class="stream-body">
-                <video id="heatmap-img" autoplay muted playsinline></video>
+                <video id="heatmap-img" autoplay muted playsinline disableRemotePlayback></video>
                 <div class="stream-placeholder" id="heatmap-placeholder">
                     <div class="spinner"></div>
                     <span>Connecting to stream...</span>
@@ -721,6 +721,12 @@
             video.classList.add('loaded');
             placeholder.classList.add('hidden');
             error.style.display = 'none';
+            // Minimize buffering for low latency live stream
+            if ('requestVideoFrameCallback' in video) {
+                video.requestVideoFrameCallback(function drain() {
+                    video.requestVideoFrameCallback(drain);
+                });
+            }
         };
 
         pc.oniceconnectionstatechange = () => {
