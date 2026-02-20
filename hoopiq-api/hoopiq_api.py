@@ -1,10 +1,11 @@
 # HoopIQ Cloud API
 # Flask backend for receiving data from Raspberry Pi and serving to website
 
-from flask import Flask, jsonify, request, Response
+from flask import Flask, jsonify, request, Response, send_from_directory
 from flask_cors import CORS
 import time
 import base64
+import os
 
 app = Flask(__name__)
 CORS(app)  # Allow requests from any domain
