@@ -333,107 +333,101 @@
 
 </div>
 <script>
-    // Cloud server — snapshots pushed by Pi at ~10fps, stats updated continuously
-    const CLOUD_URL = 'https://cecs490-senior-project.onrender.com';
-    // Pi direct via Tailscale Funnel — used as primary MJPEG attempt
-    const PI_URL    = 'https://hoopiq.tail6a4dd0.ts.net';
+    const MEDIAMTX = 'https://hoopiq.tail6a4dd0.ts.net';
+    const CLOUD    = 'https://cecs490-senior-project.onrender.com';
 
-    let bUsingCloud = false;
-    let hUsingCloud = false;
+    // ── WebRTC player via MediaMTX WHEP protocol ──────────────────────────────
+    // WHEP = WebRTC-HTTP Egress Protocol — MediaMTX supports it natively.
+    // Browser connects directly to Pi via Tailscale Funnel, true 30/60fps.
 
-    // ── MJPEG direct from Pi (primary) ────────────────────────────────────────
-    function setupMjpeg(imgId, placeholderId, errorId, mjpegUrl, cloudPath) {
-        const img         = document.getElementById(imgId);
+    async function startWebRTC(videoId, placeholderId, errorId, streamPath) {
+        const video       = document.getElementById(videoId);
         const placeholder = document.getElementById(placeholderId);
-        const errorBanner = document.getElementById(errorId);
+        const error       = document.getElementById(errorId);
 
-        // If MJPEG doesn't load a frame within 6s, fall back to cloud polling
-        const fallbackTimer = setTimeout(() => {
-            console.log(`MJPEG timeout for ${imgId}, switching to cloud polling`);
-            img.src = '';
-            startCloudPolling(imgId, placeholderId, errorId, cloudPath);
-        }, 6000);
+        const pc = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
 
-        img.onload = () => {
-            clearTimeout(fallbackTimer);
-            img.classList.add('loaded');
+        // We only receive video, no sending
+        pc.addTransceiver('video', { direction: 'recvonly' });
+
+        pc.ontrack = (evt) => {
+            video.srcObject = evt.streams[0];
+            video.play().catch(() => {});
+            video.classList.add('loaded');
             placeholder.classList.add('hidden');
-            errorBanner.style.display = 'none';
+            error.style.display = 'none';
         };
 
-        img.onerror = () => {
-            clearTimeout(fallbackTimer);
-            console.log(`MJPEG error for ${imgId}, switching to cloud polling`);
-            startCloudPolling(imgId, placeholderId, errorId, cloudPath);
-        };
-
-        img.src = mjpegUrl;
-    }
-
-    // ── Cloud snapshot polling (fallback) ─────────────────────────────────────
-    function startCloudPolling(imgId, placeholderId, errorId, cloudPath) {
-        const img         = document.getElementById(imgId);
-        const placeholder = document.getElementById(placeholderId);
-        const errorBanner = document.getElementById(errorId);
-
-        if (imgId === 'basketball-img') bUsingCloud = true;
-        else hUsingCloud = true;
-
-        let failCount = 0;
-
-        async function pollFrame() {
-            try {
-                const url = `${CLOUD_URL}${cloudPath}?t=${Date.now()}`;
-                const res = await fetch(url, { cache: 'no-store' });
-                if (!res.ok) throw new Error('no frame');
-
-                const blob = await res.blob();
-                const objectUrl = URL.createObjectURL(blob);
-
-                const old = img.src;
-                img.onload = () => {
-                    img.classList.add('loaded');
-                    placeholder.classList.add('hidden');
-                    errorBanner.style.display = 'none';
-                    if (old.startsWith('blob:')) URL.revokeObjectURL(old);
-                };
-                img.src = objectUrl;
-                failCount = 0;
-            } catch {
-                failCount++;
-                if (failCount > 5) {
-                    errorBanner.style.display = 'block';
-                }
+        pc.oniceconnectionstatechange = () => {
+            if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+                error.style.display = 'block';
+                // Retry after 5s
+                setTimeout(() => {
+                    error.style.display = 'none';
+                    startWebRTC(videoId, placeholderId, errorId, streamPath);
+                }, 5000);
             }
-        }
+        };
 
-        // Poll at ~10fps — matches the Pi's cloud push rate
-        pollFrame();
-        setInterval(pollFrame, 100);
+        try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            // Wait for ICE gathering to complete
+            await new Promise(resolve => {
+                if (pc.iceGatheringState === 'complete') { resolve(); return; }
+                pc.onicegatheringstatechange = () => {
+                    if (pc.iceGatheringState === 'complete') resolve();
+                };
+                setTimeout(resolve, 3000); // max 3s wait
+            });
+
+            // Send offer to MediaMTX WHEP endpoint
+            const resp = await fetch(`${MEDIAMTX}/${streamPath}/whep`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/sdp' },
+                body: pc.localDescription.sdp
+            });
+
+            if (!resp.ok) throw new Error(`WHEP ${resp.status}`);
+            const answer = await resp.text();
+            await pc.setRemoteDescription({ type: 'answer', sdp: answer });
+
+        } catch (e) {
+            console.error(streamPath + ' WebRTC error:', e);
+            error.style.display = 'block';
+            // Retry after 5s
+            setTimeout(() => {
+                error.style.display = 'none';
+                startWebRTC(videoId, placeholderId, errorId, streamPath);
+            }, 5000);
+        }
     }
 
-    // ── Stats polling ─────────────────────────────────────────────────────────
+    // ── Stats polling from cloud ───────────────────────────────────────────────
     async function updateStats() {
         try {
-            const res = await fetch(`${CLOUD_URL}/stats`, { cache: 'no-store' });
-            if (!res.ok) throw new Error('bad');
-            const data = await res.json();
+            const r = await fetch(`${CLOUD}/stats`, { cache: 'no-store' });
+            if (!r.ok) throw new Error();
+            const d = await r.json();
 
-            const online = data.system?.online ?? true;
+            const online = d.system?.online ?? true;
             document.getElementById('status-dot').className = 'status-dot' + (online ? ' online' : '');
             document.getElementById('status-text').textContent = online ? 'Online' : 'Offline';
 
-            setText('makes',         data.basketball?.makes        ?? '--');
-            setText('trajectories',  data.basketball?.trajectories ?? '--');
-            setText('players',       data.heatmap?.current_players ?? '--');
-            setText('backboard',     data.sensors?.backboard_hits  ?? '--');
-            setText('rim',           data.sensors?.rim_hits        ?? '--');
-            setText('total-players', data.heatmap?.total_detected  ?? '--');
+            setText('makes',         d.basketball?.makes        ?? '--');
+            setText('trajectories',  d.basketball?.trajectories ?? '--');
+            setText('players',       d.heatmap?.current_players ?? '--');
+            setText('backboard',     d.sensors?.backboard_hits  ?? '--');
+            setText('rim',           d.sensors?.rim_hits        ?? '--');
+            setText('total-players', d.heatmap?.total_detected  ?? '--');
 
             document.getElementById('b-fps-badge').textContent =
-                (data.basketball?.fps != null ? data.basketball.fps.toFixed(1) : '--') + ' fps';
+                (d.basketball?.fps != null ? d.basketball.fps.toFixed(1) : '--') + ' fps';
             document.getElementById('h-fps-badge').textContent =
-                (data.heatmap?.fps != null ? data.heatmap.fps.toFixed(1) : '--') + ' fps';
+                (d.heatmap?.fps != null ? d.heatmap.fps.toFixed(1) : '--') + ' fps';
 
             document.getElementById('last-update').textContent =
                 'Last update: ' + new Date().toLocaleTimeString();
@@ -448,12 +442,22 @@
         if (el) el.textContent = val;
     }
 
-    // ── Boot ──────────────────────────────────────────────────────────────────
-    // Try MJPEG direct from Pi first, auto-fallback to cloud snapshots
-    setupMjpeg('basketball-img', 'basketball-placeholder', 'basketball-error',
-        `${PI_URL}/api/stream/basketball`, '/frame/basketball');
-    setupMjpeg('heatmap-img', 'heatmap-placeholder', 'heatmap-error',
-        `${PI_URL}/api/stream/heatmap`, '/frame/heatmap');
+    // ── Boot — replace <img> tags with <video> tags for WebRTC ───────────────
+    ['basketball', 'heatmap'].forEach(name => {
+        const img = document.getElementById(name + '-img');
+        const video = document.createElement('video');
+        video.id = name + '-img';
+        video.autoplay = true;
+        video.muted = true;
+        video.playsInline = true;
+        video.style.cssText = img.style.cssText;
+        video.className = img.className;
+        img.parentNode.replaceChild(video, img);
+    });
+
+    // Start WebRTC streams
+    startWebRTC('basketball-img', 'basketball-placeholder', 'basketball-error', 'basketball');
+    startWebRTC('heatmap-img',    'heatmap-placeholder',    'heatmap-error',    'heatmap');
 
     updateStats();
     setInterval(updateStats, 2000);
