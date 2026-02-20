@@ -570,7 +570,7 @@
         <div class="stream-card">
             <div class="stream-header">
                 <span class="cam-label">C920 / BASKETBALL TRACKER</span>
-                <span class="fps-badge" id="b-fps-badge">-- fps</span>
+                <span class="fps-badge" id="b-heatmap-badge">0 points</span>
             </div>
             <div class="stream-body">
                 <video id="basketball-img" autoplay muted playsinline disableRemotePlayback></video>
@@ -585,7 +585,7 @@
         <div class="stream-card">
             <div class="stream-header">
                 <span class="cam-label">C922X / PLAYER HEATMAP</span>
-                <span class="fps-badge" id="h-fps-badge">-- fps</span>
+                <span class="fps-badge" id="h-session-badge">00:00:00</span>
             </div>
             <div class="stream-body">
                 <video id="heatmap-img" autoplay muted playsinline disableRemotePlayback></video>
@@ -782,6 +782,19 @@
         setInterval(tick, 1000);
     }
 
+    function startSessionTimer() {
+        const start = Date.now();
+        function tick() {
+            const elapsed = Math.floor((Date.now() - start) / 1000);
+            const h = Math.floor(elapsed / 3600).toString().padStart(2, '0');
+            const m = Math.floor((elapsed % 3600) / 60).toString().padStart(2, '0');
+            const s = (elapsed % 60).toString().padStart(2, '0');
+            document.getElementById('h-session-badge').textContent = h + ':' + m + ':' + s;
+        }
+        tick();
+        setInterval(tick, 1000);
+    }
+
     async function updateStats() {
         try {
             const r = await fetch(`${CLOUD}/stats`, { cache: 'no-store' });
@@ -799,10 +812,8 @@
             setText('rim',           d.sensors?.rim_hits        ?? '--');
             setText('total-players', d.heatmap?.total_detected  ?? '--');
 
-            document.getElementById('b-fps-badge').textContent =
-                (d.basketball?.fps != null ? d.basketball.fps.toFixed(1) : '--') + ' fps';
-            document.getElementById('h-fps-badge').textContent =
-                (d.heatmap?.fps != null ? d.heatmap.fps.toFixed(1) : '--') + ' fps';
+            document.getElementById('b-heatmap-badge').textContent =
+                (d.heatmap?.heatmap_points ?? '--') + ' points';
 
         } catch {
             document.getElementById('status-dot').className = 'status-dot';
@@ -822,6 +833,7 @@
     startWebRTC('heatmap-img',    'heatmap-placeholder',    'heatmap-error',    'heatmap');
 
     startClock();
+    startSessionTimer();
     updateStats();
     setInterval(updateStats, 2000);
 </script>
