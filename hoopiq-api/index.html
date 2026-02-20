@@ -333,45 +333,89 @@
 
 </div>
 <script>
-    // Pi MJPEG streams via Tailscale Funnel — true continuous video, no cloud relay
+    // Cloud server — snapshots pushed by Pi at ~10fps, stats updated continuously
+    const CLOUD_URL = 'https://cecs490-senior-project.onrender.com';
+    // Pi direct via Tailscale Funnel — used as primary MJPEG attempt
     const PI_URL    = 'https://hoopiq.tail6a4dd0.ts.net';
-    // Stats JSON from Render cloud server
-    const STATS_URL = 'https://cecs490-senior-project.onrender.com';
 
-    function setupStream(imgId, placeholderId, errorId, url) {
+    let bUsingCloud = false;
+    let hUsingCloud = false;
+
+    // ── MJPEG direct from Pi (primary) ────────────────────────────────────────
+    function setupMjpeg(imgId, placeholderId, errorId, mjpegUrl, cloudPath) {
         const img         = document.getElementById(imgId);
         const placeholder = document.getElementById(placeholderId);
         const errorBanner = document.getElementById(errorId);
 
-        const timeout = setTimeout(() => {
-            errorBanner.style.display = 'block';
-        }, 8000);
+        // If MJPEG doesn't load a frame within 6s, fall back to cloud polling
+        const fallbackTimer = setTimeout(() => {
+            console.log(`MJPEG timeout for ${imgId}, switching to cloud polling`);
+            img.src = '';
+            startCloudPolling(imgId, placeholderId, errorId, cloudPath);
+        }, 6000);
 
         img.onload = () => {
-            clearTimeout(timeout);
+            clearTimeout(fallbackTimer);
             img.classList.add('loaded');
             placeholder.classList.add('hidden');
             errorBanner.style.display = 'none';
         };
 
         img.onerror = () => {
-            clearTimeout(timeout);
-            img.classList.remove('loaded');
-            placeholder.classList.remove('hidden');
-            errorBanner.style.display = 'block';
-            // Retry after 5s
-            setTimeout(() => {
-                errorBanner.style.display = 'none';
-                img.src = url + '?r=' + Date.now();
-            }, 5000);
+            clearTimeout(fallbackTimer);
+            console.log(`MJPEG error for ${imgId}, switching to cloud polling`);
+            startCloudPolling(imgId, placeholderId, errorId, cloudPath);
         };
 
-        img.src = url;
+        img.src = mjpegUrl;
     }
 
+    // ── Cloud snapshot polling (fallback) ─────────────────────────────────────
+    function startCloudPolling(imgId, placeholderId, errorId, cloudPath) {
+        const img         = document.getElementById(imgId);
+        const placeholder = document.getElementById(placeholderId);
+        const errorBanner = document.getElementById(errorId);
+
+        if (imgId === 'basketball-img') bUsingCloud = true;
+        else hUsingCloud = true;
+
+        let failCount = 0;
+
+        async function pollFrame() {
+            try {
+                const url = `${CLOUD_URL}${cloudPath}?t=${Date.now()}`;
+                const res = await fetch(url, { cache: 'no-store' });
+                if (!res.ok) throw new Error('no frame');
+
+                const blob = await res.blob();
+                const objectUrl = URL.createObjectURL(blob);
+
+                const old = img.src;
+                img.onload = () => {
+                    img.classList.add('loaded');
+                    placeholder.classList.add('hidden');
+                    errorBanner.style.display = 'none';
+                    if (old.startsWith('blob:')) URL.revokeObjectURL(old);
+                };
+                img.src = objectUrl;
+                failCount = 0;
+            } catch {
+                failCount++;
+                if (failCount > 5) {
+                    errorBanner.style.display = 'block';
+                }
+            }
+        }
+
+        // Poll at ~10fps — matches the Pi's cloud push rate
+        pollFrame();
+        setInterval(pollFrame, 100);
+    }
+
+    // ── Stats polling ─────────────────────────────────────────────────────────
     async function updateStats() {
         try {
-            const res = await fetch(`${STATS_URL}/stats`, { cache: 'no-store' });
+            const res = await fetch(`${CLOUD_URL}/stats`, { cache: 'no-store' });
             if (!res.ok) throw new Error('bad');
             const data = await res.json();
 
@@ -404,13 +448,13 @@
         if (el) el.textContent = val;
     }
 
-    // Start MJPEG streams — browser keeps the connection open and renders each frame
-    setupStream('basketball-img', 'basketball-placeholder', 'basketball-error',
-        `${PI_URL}/api/stream/basketball`);
-    setupStream('heatmap-img', 'heatmap-placeholder', 'heatmap-error',
-        `${PI_URL}/api/stream/heatmap`);
+    // ── Boot ──────────────────────────────────────────────────────────────────
+    // Try MJPEG direct from Pi first, auto-fallback to cloud snapshots
+    setupMjpeg('basketball-img', 'basketball-placeholder', 'basketball-error',
+        `${PI_URL}/api/stream/basketball`, '/frame/basketball');
+    setupMjpeg('heatmap-img', 'heatmap-placeholder', 'heatmap-error',
+        `${PI_URL}/api/stream/heatmap`, '/frame/heatmap');
 
-    // Poll stats every 2s
     updateStats();
     setInterval(updateStats, 2000);
 </script>
