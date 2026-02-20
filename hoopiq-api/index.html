@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HoopIQ — Live Basketball Analytics</title>
-    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
         :root {
             --green: #00ff88;
@@ -15,8 +15,8 @@
             --bg-card2: #0d1510;
             --text: #e8f5ed;
             --text-dim: #5a7a63;
-            --mono: 'Share Tech Mono', monospace;
-            --sans: 'Barlow', sans-serif;
+            --mono: 'Space Mono', monospace;
+            --sans: 'DM Mono', monospace;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -41,6 +41,150 @@
             z-index: 0;
         }
 
+        /* ── Auth Modal ───────────────────────────────────────────── */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        .modal-overlay.active { display: flex; }
+
+        .modal {
+            background: var(--bg-card);
+            border: 1px solid var(--green-border);
+            border-radius: 12px;
+            padding: 40px;
+            width: 100%;
+            max-width: 420px;
+            position: relative;
+        }
+
+        .modal h2 {
+            font-family: var(--mono);
+            font-weight: 700;
+            font-size: 1.8em;
+            color: var(--green);
+            margin-bottom: 6px;
+        }
+
+        .modal .modal-sub {
+            font-family: var(--mono);
+            font-size: 0.72em;
+            color: var(--text-dim);
+            margin-bottom: 28px;
+            letter-spacing: 0.06em;
+        }
+
+        .modal-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 24px;
+            background: var(--bg);
+            border-radius: 6px;
+            padding: 4px;
+        }
+
+        .modal-tab {
+            flex: 1;
+            padding: 8px;
+            text-align: center;
+            font-family: var(--mono);
+            font-size: 0.78em;
+            color: var(--text-dim);
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+            letter-spacing: 0.06em;
+            border: none;
+            background: none;
+        }
+
+        .modal-tab.active {
+            background: var(--green);
+            color: #000;
+            font-weight: 700;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-family: var(--mono);
+            font-size: 0.7em;
+            color: var(--text-dim);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .form-group input {
+            width: 100%;
+            background: var(--bg);
+            border: 1px solid var(--green-border);
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-family: var(--mono);
+            font-size: 0.85em;
+            color: var(--text);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            border-color: var(--green);
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 12px;
+            background: var(--green);
+            border: none;
+            border-radius: 6px;
+            font-family: var(--mono);
+            font-size: 0.85em;
+            font-weight: 700;
+            color: #000;
+            cursor: pointer;
+            letter-spacing: 0.08em;
+            margin-top: 8px;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .btn-primary:hover { background: var(--green-dim); }
+        .btn-primary:active { transform: scale(0.98); }
+
+        .modal-error {
+            font-family: var(--mono);
+            font-size: 0.72em;
+            color: #ff6680;
+            margin-top: 12px;
+            text-align: center;
+            min-height: 16px;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-size: 1.2em;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: color 0.2s;
+        }
+        .modal-close:hover { color: var(--text); }
+
+        /* ── Main Layout ───────────────────────────────────────────── */
         .container {
             position: relative;
             z-index: 1;
@@ -51,7 +195,7 @@
 
         header {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             justify-content: space-between;
             margin-bottom: 40px;
             padding-bottom: 24px;
@@ -59,20 +203,34 @@
         }
 
         .logo-block h1 {
-            font-family: var(--sans);
-            font-weight: 900;
-            font-size: 2.4em;
-            letter-spacing: -0.02em;
+            font-family: var(--mono);
+            font-weight: 700;
+            font-size: 2.2em;
+            letter-spacing: -0.03em;
             color: var(--green);
             line-height: 1;
         }
 
-        .logo-block p {
+        .logo-block .team-names {
             font-family: var(--mono);
-            font-size: 0.75em;
+            font-size: 0.68em;
+            color: var(--text-dim);
+            letter-spacing: 0.04em;
+            margin-top: 4px;
+        }
+
+        .logo-block .subtitle {
+            font-family: var(--mono);
+            font-size: 0.72em;
             color: var(--text-dim);
             letter-spacing: 0.08em;
-            margin-top: 4px;
+            margin-top: 2px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
         }
 
         .system-status {
@@ -106,6 +264,59 @@
 
         #status-text { color: var(--text); }
 
+        /* Auth buttons in header */
+        .auth-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-auth {
+            font-family: var(--mono);
+            font-size: 0.75em;
+            letter-spacing: 0.06em;
+            padding: 7px 14px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid var(--green-border);
+        }
+
+        .btn-login {
+            background: none;
+            color: var(--text-dim);
+        }
+        .btn-login:hover { color: var(--text); border-color: var(--green-dim); }
+
+        .btn-register {
+            background: var(--green);
+            color: #000;
+            border-color: var(--green);
+            font-weight: 700;
+        }
+        .btn-register:hover { background: var(--green-dim); }
+
+        .btn-logout {
+            background: none;
+            color: var(--text-dim);
+            border: 1px solid var(--green-border);
+            font-family: var(--mono);
+            font-size: 0.75em;
+            letter-spacing: 0.06em;
+            padding: 7px 14px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-logout:hover { color: #ff6680; border-color: rgba(255,51,85,0.4); }
+
+        .user-greeting {
+            font-family: var(--mono);
+            font-size: 0.78em;
+            color: var(--green);
+            letter-spacing: 0.04em;
+        }
+
+        /* ── Stats Bar ─────────────────────────────────────────────── */
         .stats-bar {
             display: grid;
             grid-template-columns: repeat(6, 1fr);
@@ -143,6 +354,7 @@
             line-height: 1;
         }
 
+        /* ── Streams ───────────────────────────────────────────────── */
         .streams-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -189,7 +401,7 @@
             overflow: hidden;
         }
 
-        .stream-body img {
+        .stream-body video, .stream-body img {
             width: 100%;
             height: 100%;
             object-fit: cover;
@@ -198,7 +410,7 @@
             transition: opacity 0.4s;
         }
 
-        .stream-body img.loaded { opacity: 1; }
+        .stream-body video.loaded, .stream-body img.loaded { opacity: 1; }
 
         .stream-placeholder {
             position: absolute;
@@ -214,10 +426,7 @@
             transition: opacity 0.3s;
         }
 
-        .stream-placeholder.hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
+        .stream-placeholder.hidden { opacity: 0; pointer-events: none; }
 
         .spinner {
             width: 28px;
@@ -245,6 +454,7 @@
             text-align: center;
         }
 
+        /* ── Footer ────────────────────────────────────────────────── */
         footer {
             border-top: 1px solid var(--green-border);
             padding-top: 20px;
@@ -258,6 +468,7 @@
             gap: 8px;
         }
 
+        /* ── Responsive ────────────────────────────────────────────── */
         @media (max-width: 900px) {
             .streams-grid { grid-template-columns: 1fr; }
             .stats-bar { grid-template-columns: repeat(3, 1fr); }
@@ -270,16 +481,79 @@
     </style>
 </head>
 <body>
+
+<!-- ── Auth Modal ─────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="auth-modal">
+    <div class="modal">
+        <button class="modal-close" id="modal-close">✕</button>
+        <h2>HoopIQ</h2>
+        <p class="modal-sub">CECS490 SENIOR PROJECT — TEAM 2</p>
+
+        <div class="modal-tabs">
+            <button class="modal-tab active" id="tab-login" onclick="switchTab('login')">LOGIN</button>
+            <button class="modal-tab" id="tab-register" onclick="switchTab('register')">REGISTER</button>
+        </div>
+
+        <!-- Login Form -->
+        <div id="form-login">
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="login-email" placeholder="you@example.com">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="login-password" placeholder="••••••••">
+            </div>
+            <button class="btn-primary" onclick="handleLogin()">SIGN IN</button>
+        </div>
+
+        <!-- Register Form -->
+        <div id="form-register" style="display:none">
+            <div class="form-group">
+                <label>Full Name</label>
+                <input type="text" id="reg-name" placeholder="Your name">
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="reg-email" placeholder="you@example.com">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="reg-password" placeholder="••••••••">
+            </div>
+            <div class="form-group">
+                <label>Confirm Password</label>
+                <input type="password" id="reg-confirm" placeholder="••••••••">
+            </div>
+            <button class="btn-primary" onclick="handleRegister()">CREATE ACCOUNT</button>
+        </div>
+
+        <div class="modal-error" id="auth-error"></div>
+    </div>
+</div>
+
+<!-- ── Main Dashboard ─────────────────────────────────────────────── -->
 <div class="container">
 
     <header>
         <div class="logo-block">
             <h1>HoopIQ</h1>
-            <p>CECS490 SENIOR PROJECT &mdash; TEAM 2</p>
+            <div class="team-names">Christopher Hong &mdash; Gondra Kelly &mdash; Matthew Marguiles &mdash; Alfonso Mejia Vasquez &mdash; Carlos Orozco</div>
+            <div class="subtitle">CECS490 SENIOR PROJECT &mdash; TEAM 2</div>
         </div>
-        <div class="system-status">
-            <div class="status-dot" id="status-dot"></div>
-            <span id="status-text">Connecting...</span>
+        <div class="header-right">
+            <div class="system-status">
+                <div class="status-dot" id="status-dot"></div>
+                <span id="status-text">Connecting...</span>
+            </div>
+            <div class="auth-buttons" id="auth-buttons">
+                <button class="btn-auth btn-login" onclick="openModal('login')">LOGIN</button>
+                <button class="btn-auth btn-register" onclick="openModal('register')">REGISTER</button>
+            </div>
+            <div id="user-info" style="display:none; align-items:center; gap:12px;">
+                <span class="user-greeting" id="user-greeting"></span>
+                <button class="btn-logout" onclick="handleLogout()">LOGOUT</button>
+            </div>
         </div>
     </header>
 
@@ -293,14 +567,13 @@
     </div>
 
     <div class="streams-grid">
-
         <div class="stream-card">
             <div class="stream-header">
                 <span class="cam-label">C920 / BASKETBALL TRACKER</span>
                 <span class="fps-badge" id="b-fps-badge">-- fps</span>
             </div>
             <div class="stream-body">
-                <img id="basketball-img" alt="Basketball feed">
+                <video id="basketball-img" autoplay muted playsinline></video>
                 <div class="stream-placeholder" id="basketball-placeholder">
                     <div class="spinner"></div>
                     <span>Connecting to stream...</span>
@@ -315,7 +588,7 @@
                 <span class="fps-badge" id="h-fps-badge">-- fps</span>
             </div>
             <div class="stream-body">
-                <img id="heatmap-img" alt="Heatmap feed">
+                <video id="heatmap-img" autoplay muted playsinline></video>
                 <div class="stream-placeholder" id="heatmap-placeholder">
                     <div class="spinner"></div>
                     <span>Connecting to stream...</span>
@@ -323,23 +596,114 @@
                 <div class="stream-error" id="heatmap-error">Stream unavailable — Pi may be offline</div>
             </div>
         </div>
-
     </div>
 
     <footer>
-        <span>HoopIQ &mdash; Christopher Hong, Gondra Kelly, Matthew Marguiles, Alfonso Mejia Vasquez, Carlos Orozco</span>
+        <span>HoopIQ &copy; 2026 &mdash; CECS490 Team 2</span>
         <span id="last-update">Last update: --</span>
     </footer>
 
 </div>
+
 <script>
     const MEDIAMTX = 'https://hoopiq.tail6a4dd0.ts.net';
     const CLOUD    = 'https://cecs490-senior-project.onrender.com';
 
-    // ── WebRTC player via MediaMTX WHEP protocol ──────────────────────────────
-    // WHEP = WebRTC-HTTP Egress Protocol — MediaMTX supports it natively.
-    // Browser connects directly to Pi via Tailscale Funnel, true 30/60fps.
+    // ── Simple in-memory auth (replace with real backend later) ──────
+    const USERS_KEY = 'hoopiq_users';
+    const SESSION_KEY = 'hoopiq_session';
 
+    function getUsers() {
+        try { return JSON.parse(localStorage.getItem(USERS_KEY) || '{}'); } catch { return {}; }
+    }
+    function saveUsers(u) { localStorage.setItem(USERS_KEY, JSON.stringify(u)); }
+    function getSession() {
+        try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
+    }
+    function saveSession(s) { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); }
+    function clearSession() { localStorage.removeItem(SESSION_KEY); }
+
+    // ── Modal ─────────────────────────────────────────────────────────
+    function openModal(tab) {
+        document.getElementById('auth-modal').classList.add('active');
+        switchTab(tab || 'login');
+        document.getElementById('auth-error').textContent = '';
+    }
+
+    function closeModal() {
+        document.getElementById('auth-modal').classList.remove('active');
+    }
+
+    document.getElementById('modal-close').onclick = closeModal;
+    document.getElementById('auth-modal').addEventListener('click', e => {
+        if (e.target === document.getElementById('auth-modal')) closeModal();
+    });
+
+    function switchTab(tab) {
+        document.getElementById('form-login').style.display    = tab === 'login'    ? 'block' : 'none';
+        document.getElementById('form-register').style.display = tab === 'register' ? 'block' : 'none';
+        document.getElementById('tab-login').classList.toggle('active',    tab === 'login');
+        document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+        document.getElementById('auth-error').textContent = '';
+    }
+
+    function handleLogin() {
+        const email = document.getElementById('login-email').value.trim();
+        const pass  = document.getElementById('login-password').value;
+        const users = getUsers();
+        const err   = document.getElementById('auth-error');
+
+        if (!email || !pass) { err.textContent = 'Please fill in all fields.'; return; }
+        if (!users[email])   { err.textContent = 'No account found with that email.'; return; }
+        if (users[email].password !== btoa(pass)) { err.textContent = 'Incorrect password.'; return; }
+
+        saveSession({ email, name: users[email].name });
+        updateAuthUI();
+        closeModal();
+    }
+
+    function handleRegister() {
+        const name    = document.getElementById('reg-name').value.trim();
+        const email   = document.getElementById('reg-email').value.trim();
+        const pass    = document.getElementById('reg-password').value;
+        const confirm = document.getElementById('reg-confirm').value;
+        const users   = getUsers();
+        const err     = document.getElementById('auth-error');
+
+        if (!name || !email || !pass || !confirm) { err.textContent = 'Please fill in all fields.'; return; }
+        if (pass !== confirm)   { err.textContent = 'Passwords do not match.'; return; }
+        if (pass.length < 6)    { err.textContent = 'Password must be at least 6 characters.'; return; }
+        if (users[email])       { err.textContent = 'An account with that email already exists.'; return; }
+
+        users[email] = { name, password: btoa(pass) };
+        saveUsers(users);
+        saveSession({ email, name });
+        updateAuthUI();
+        closeModal();
+    }
+
+    function handleLogout() {
+        clearSession();
+        updateAuthUI();
+    }
+
+    function updateAuthUI() {
+        const session = getSession();
+        const btns    = document.getElementById('auth-buttons');
+        const info    = document.getElementById('user-info');
+        const greeting = document.getElementById('user-greeting');
+
+        if (session) {
+            btns.style.display = 'none';
+            info.style.display = 'flex';
+            greeting.textContent = 'Hi, ' + session.name.split(' ')[0];
+        } else {
+            btns.style.display = 'flex';
+            info.style.display = 'none';
+        }
+    }
+
+    // ── WebRTC ────────────────────────────────────────────────────────
     async function startWebRTC(videoId, placeholderId, errorId, streamPath) {
         const video       = document.getElementById(videoId);
         const placeholder = document.getElementById(placeholderId);
@@ -349,7 +713,6 @@
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
         });
 
-        // We only receive video, no sending
         pc.addTransceiver('video', { direction: 'recvonly' });
 
         pc.ontrack = (evt) => {
@@ -363,7 +726,6 @@
         pc.oniceconnectionstatechange = () => {
             if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
                 error.style.display = 'block';
-                // Retry after 5s
                 setTimeout(() => {
                     error.style.display = 'none';
                     startWebRTC(videoId, placeholderId, errorId, streamPath);
@@ -375,16 +737,14 @@
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
 
-            // Wait for ICE gathering to complete
             await new Promise(resolve => {
                 if (pc.iceGatheringState === 'complete') { resolve(); return; }
                 pc.onicegatheringstatechange = () => {
                     if (pc.iceGatheringState === 'complete') resolve();
                 };
-                setTimeout(resolve, 3000); // max 3s wait
+                setTimeout(resolve, 3000);
             });
 
-            // Send offer to MediaMTX WHEP endpoint
             const resp = await fetch(`${MEDIAMTX}/${streamPath}/whep`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/sdp' },
@@ -398,7 +758,6 @@
         } catch (e) {
             console.error(streamPath + ' WebRTC error:', e);
             error.style.display = 'block';
-            // Retry after 5s
             setTimeout(() => {
                 error.style.display = 'none';
                 startWebRTC(videoId, placeholderId, errorId, streamPath);
@@ -406,7 +765,17 @@
         }
     }
 
-    // ── Stats polling from cloud ───────────────────────────────────────────────
+    // ── Stats — real-time clock + 2s data poll ────────────────────────
+    // Clock updates every second independently of stats fetch
+    function startClock() {
+        function tick() {
+            document.getElementById('last-update').textContent =
+                'Last update: ' + new Date().toLocaleTimeString();
+        }
+        tick();
+        setInterval(tick, 1000);
+    }
+
     async function updateStats() {
         try {
             const r = await fetch(`${CLOUD}/stats`, { cache: 'no-store' });
@@ -429,8 +798,6 @@
             document.getElementById('h-fps-badge').textContent =
                 (d.heatmap?.fps != null ? d.heatmap.fps.toFixed(1) : '--') + ' fps';
 
-            document.getElementById('last-update').textContent =
-                'Last update: ' + new Date().toLocaleTimeString();
         } catch {
             document.getElementById('status-dot').className = 'status-dot';
             document.getElementById('status-text').textContent = 'Offline';
@@ -442,23 +809,13 @@
         if (el) el.textContent = val;
     }
 
-    // ── Boot — replace <img> tags with <video> tags for WebRTC ───────────────
-    ['basketball', 'heatmap'].forEach(name => {
-        const img = document.getElementById(name + '-img');
-        const video = document.createElement('video');
-        video.id = name + '-img';
-        video.autoplay = true;
-        video.muted = true;
-        video.playsInline = true;
-        video.style.cssText = img.style.cssText;
-        video.className = img.className;
-        img.parentNode.replaceChild(video, img);
-    });
+    // ── Boot ──────────────────────────────────────────────────────────
+    updateAuthUI();
 
-    // Start WebRTC streams
     startWebRTC('basketball-img', 'basketball-placeholder', 'basketball-error', 'basketball');
     startWebRTC('heatmap-img',    'heatmap-placeholder',    'heatmap-error',    'heatmap');
 
+    startClock();
     updateStats();
     setInterval(updateStats, 2000);
 </script>
