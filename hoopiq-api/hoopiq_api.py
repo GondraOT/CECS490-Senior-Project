@@ -29,18 +29,8 @@ latest_data = {
 
 @app.route('/', methods=['GET'])
 def home():
-    """API info page"""
-    return jsonify({
-        "name": "HoopIQ API",
-        "version": "1.0",
-        "endpoints": {
-            "/update": "POST - Pi sends data here",
-            "/stats": "GET - Get current statistics",
-            "/frame/basketball": "GET - Get latest basketball frame",
-            "/frame/heatmap": "GET - Get latest heatmap frame",
-            "/health": "GET - Check if Pi is online"
-        }
-    })
+    """Serve the HoopIQ dashboard"""
+    return send_from_directory(os.path.dirname(os.path.abspath(__file__)), 'index.html')
 
 @app.route('/update', methods=['POST'])
 def update_data():
