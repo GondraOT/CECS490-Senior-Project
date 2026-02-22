@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HoopIQ — Live Basketball Analytics</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='%2300ff88' stroke-width='2'/%3E%3Cpath d='M16 2 C16 2, 10 8, 10 16 C10 24, 16 30, 16 30' fill='none' stroke='%2300ff88' stroke-width='1.5'/%3E%3Cpath d='M16 2 C16 2, 22 8, 22 16 C22 24, 16 30, 16 30' fill='none' stroke='%2300ff88' stroke-width='1.5'/%3E%3Cline x1='2' y1='16' x2='30' y2='16' stroke='%2300ff88' stroke-width='1.5'/%3E%3Cpath d='M4 9 Q16 13 28 9' fill='none' stroke='%2300ff88' stroke-width='1.5'/%3E%3Cpath d='M4 23 Q16 19 28 23' fill='none' stroke='%2300ff88' stroke-width='1.5'/%3E%3C/svg%3E">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='8' y='2' width='16' height='10' rx='1' fill='none' stroke='%2300ff88' stroke-width='1.5'/%3E%3Cline x1='16' y1='12' x2='16' y2='15' stroke='%2300ff88' stroke-width='1.5'/%3E%3Cellipse cx='16' cy='16' rx='8' ry='2.5' fill='none' stroke='%2300ff88' stroke-width='2'/%3E%3Cline x1='10' y1='16' x2='11' y2='26' stroke='%2300ff88' stroke-width='1'/%3E%3Cline x1='13' y1='16' x2='13.5' y2='26' stroke='%2300ff88' stroke-width='1'/%3E%3Cline x1='16' y1='16' x2='16' y2='26' stroke='%2300ff88' stroke-width='1'/%3E%3Cline x1='19' y1='16' x2='18.5' y2='26' stroke='%2300ff88' stroke-width='1'/%3E%3Cline x1='22' y1='16' x2='21' y2='26' stroke='%2300ff88' stroke-width='1'/%3E%3Cpath d='M11 26 Q16 29 21 26' fill='none' stroke='%2300ff88' stroke-width='1'/%3E%3Cline x1='10' y1='19' x2='22' y2='19' stroke='%2300ff88' stroke-width='0.7' opacity='0.5'/%3E%3Cline x1='10.5' y1='22' x2='21.5' y2='22' stroke='%2300ff88' stroke-width='0.7' opacity='0.5'/%3E%3C/svg%3E">
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -454,52 +454,129 @@
     function drawShotChart(shotData) {
         const canvas = document.getElementById('shot-chart-canvas');
         const ctx = canvas.getContext('2d');
-        canvas.width = canvas.offsetWidth * window.devicePixelRatio || 400;
-        canvas.height = 180 * window.devicePixelRatio || 180;
-        ctx.scale(window.devicePixelRatio||1, window.devicePixelRatio||1);
-        const W = canvas.offsetWidth || 400, H = 180;
+        const dpr = window.devicePixelRatio || 1;
+        const W = canvas.offsetWidth || 400;
+        const H = 260;
+        canvas.width  = W * dpr;
+        canvas.height = H * dpr;
+        canvas.style.height = H + 'px';
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, W, H);
 
-        ctx.clearRect(0,0,W,H);
+        // ── Court background ──────────────────────────────────────────
+        const pad = 20;
+        const cW = W - pad*2, cH = H - pad - 40; // leave bottom for legend
+        const cx = pad + cW/2, baseline = pad + cH;
 
-        // Court background
-        ctx.strokeStyle = 'rgba(0,255,136,0.15)';
-        ctx.lineWidth = 1;
-        // Court outline
-        ctx.strokeRect(10, 10, W-20, H-20);
-        // Three point arc
+        // Court fill
+        ctx.fillStyle = 'rgba(0,255,136,0.03)';
+        ctx.fillRect(pad, pad, cW, cH);
+
+        // Court lines
+        ctx.strokeStyle = 'rgba(0,255,136,0.25)';
+        ctx.lineWidth = 1.2;
+
+        // Outer boundary
+        ctx.strokeRect(pad, pad, cW, cH);
+
+        // Three point arc — radius ~75% of court width
+        const arcR = cW * 0.44;
         ctx.beginPath();
-        ctx.arc(W/2, H+20, H*1.1, Math.PI, 0);
+        ctx.arc(cx, baseline, arcR, Math.PI, 0);
+        // Corner three lines
+        const cornerX = cx - arcR;
+        const cornerX2 = cx + arcR;
+        const cornerH = cH * 0.28;
+        ctx.moveTo(pad, baseline - cornerH);
+        ctx.lineTo(cornerX, baseline - cornerH);
+        ctx.moveTo(cornerX2, baseline - cornerH);
+        ctx.lineTo(pad + cW, baseline - cornerH);
         ctx.stroke();
-        // Lane
-        ctx.strokeRect(W/2-30, H-50, 60, 40);
-        // Center label
-        ctx.fillStyle = 'rgba(0,255,136,0.12)';
-        ctx.font = `${9 * (window.devicePixelRatio||1) / (window.devicePixelRatio||1)}px IBM Plex Mono`;
-        ctx.fillStyle = 'rgba(0,255,136,0.3)';
-        ctx.textAlign = 'center';
-        ctx.fillText('SHOT CHART', W/2, H/2);
 
+        // Paint / lane
+        const laneW = cW * 0.22, laneH = cH * 0.32;
+        const laneX = cx - laneW/2;
+        ctx.strokeRect(laneX, baseline - laneH, laneW, laneH);
+
+        // Free throw circle
+        ctx.beginPath();
+        ctx.arc(cx, baseline - laneH, laneW/2, Math.PI, 0);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx, baseline - laneH, laneW/2, 0, Math.PI);
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Basket circle
+        ctx.beginPath();
+        ctx.arc(cx, baseline - cH*0.05, cW*0.03, 0, Math.PI*2);
+        ctx.stroke();
+
+        // Backboard
+        ctx.beginPath();
+        ctx.moveTo(cx - cW*0.07, baseline - cH*0.035);
+        ctx.lineTo(cx + cW*0.07, baseline - cH*0.035);
+        ctx.stroke();
+
+        // No data state
         if (!shotData || shotData.length === 0) {
-            ctx.fillStyle = 'rgba(90,122,99,0.6)';
+            ctx.fillStyle = 'rgba(90,122,99,0.5)';
             ctx.font = '10px IBM Plex Mono';
-            ctx.fillText('No shot data yet', W/2, H/2+16);
+            ctx.textAlign = 'center';
+            ctx.fillText('No shot data yet', cx, pad + cH/2);
+            // Draw legend anyway
+            drawLegend(ctx, W, H, pad, 0, 0);
             return;
         }
 
-        // Draw shots
+        // ── Plot shots ────────────────────────────────────────────────
+        let makes = 0, misses = 0;
         shotData.forEach(shot => {
-            const x = 10 + (shot.x / 100) * (W - 20);
-            const y = 10 + (shot.y / 100) * (H - 20);
+            // shot.x and shot.y are 0-100 percentages of court
+            const x = pad + (shot.x / 100) * cW;
+            const y = pad + (shot.y / 100) * cH;
+            const made = shot.made;
+            if (made) makes++; else misses++;
+
             ctx.beginPath();
             ctx.arc(x, y, 5, 0, Math.PI*2);
-            ctx.fillStyle = shot.made ? 'rgba(0,255,136,0.85)' : 'rgba(255,68,102,0.75)';
+            ctx.fillStyle = made ? 'rgba(255,100,180,0.75)' : 'rgba(100,220,255,0.75)';
             ctx.fill();
-            ctx.strokeStyle = shot.made ? '#00ff88' : '#ff4466';
+            ctx.strokeStyle = made ? '#ff64b4' : '#64dcff';
             ctx.lineWidth = 1;
             ctx.stroke();
         });
 
+        drawLegend(ctx, W, H, pad, makes, misses);
         document.getElementById('shot-count-badge').textContent = shotData.length + ' shots';
+    }
+
+    function drawLegend(ctx, W, H, pad, makes, misses) {
+        const legendY = H - 22;
+        ctx.font = '10px IBM Plex Mono';
+        ctx.textAlign = 'left';
+
+        // Made dot
+        ctx.beginPath();
+        ctx.arc(pad + 8, legendY, 5, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(255,100,180,0.85)';
+        ctx.fill();
+        ctx.strokeStyle = '#ff64b4';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,100,180,0.9)';
+        ctx.fillText('made' + (makes ? ' ('+makes+')' : ''), pad + 18, legendY + 4);
+
+        // Missed dot
+        ctx.beginPath();
+        ctx.arc(pad + 90, legendY, 5, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(100,220,255,0.85)';
+        ctx.fill();
+        ctx.strokeStyle = '#64dcff';
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(100,220,255,0.9)';
+        ctx.fillText('missed' + (misses ? ' ('+misses+')' : ''), pad + 100, legendY + 4);
     }
 
     // ── Arc Trend Canvas ──────────────────────────────────────────────
