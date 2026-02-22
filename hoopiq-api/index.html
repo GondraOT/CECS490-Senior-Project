@@ -1,720 +1,91 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HoopIQ — Live Basketball Analytics</title>
-    <link rel="icon" type="image/png" sizes="32x32" href="hoopiq_icon_32.png?v=2">
-    <link rel="icon" type="image/png" sizes="64x64" href="hoopiq_icon_64.png?v=2">
-    <style>
-        :root {
-            --green: #00ff88;
-            --green-dim: #00cc6a;
-            --green-border: rgba(0,255,136,0.2);
-            --bg: #050a07;
-            --bg-card: #090f0b;
-            --bg-card2: #0d1510;
-            --text: #e8f5ed;
-            --text-dim: #5a7a63;
-            --mono: 'IBM Plex Mono', monospace;
-            --red: #ff4466;
-        }
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body {
-            font-family: var(--mono);
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-        body::before {
-            content:'';
-            position:fixed; inset:0;
-            background-image:
-                linear-gradient(rgba(0,255,136,0.025) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0,255,136,0.025) 1px, transparent 1px);
-            background-size: 40px 40px;
-            pointer-events:none; z-index:0;
-        }
-
-        /* ── Modal ── */
-        .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:200; align-items:center; justify-content:center; backdrop-filter:blur(6px); }
-        .modal-overlay.active { display:flex; }
-        .modal { background:var(--bg-card); border:1px solid var(--green-border); border-radius:12px; padding:40px; width:100%; max-width:420px; position:relative; }
-        .modal h2 { font-weight:700; font-size:1.8em; color:var(--green); margin-bottom:4px; }
-        .modal-sub { font-size:0.7em; color:var(--text-dim); margin-bottom:28px; letter-spacing:0.06em; }
-        .modal-tabs { display:flex; gap:4px; margin-bottom:24px; background:var(--bg); border-radius:6px; padding:4px; }
-        .modal-tab { flex:1; padding:8px; text-align:center; font-family:var(--mono); font-size:0.78em; color:var(--text-dim); cursor:pointer; border-radius:4px; transition:all 0.2s; letter-spacing:0.06em; border:none; background:none; }
-        .modal-tab.active { background:var(--green); color:#000; font-weight:700; }
-        .form-group { margin-bottom:16px; }
-        .form-group label { display:block; font-size:0.7em; color:var(--text-dim); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px; }
-        .form-group input { width:100%; background:var(--bg); border:1px solid var(--green-border); border-radius:6px; padding:10px 14px; font-family:var(--mono); font-size:0.85em; color:var(--text); outline:none; transition:border-color 0.2s; }
-        .form-group input:focus { border-color:var(--green); }
-        .btn-primary { width:100%; padding:12px; background:var(--green); border:none; border-radius:6px; font-family:var(--mono); font-size:0.85em; font-weight:700; color:#000; cursor:pointer; letter-spacing:0.08em; margin-top:8px; transition:background 0.2s,transform 0.1s; }
-        .btn-primary:hover { background:var(--green-dim); }
-        .btn-primary:active { transform:scale(0.98); }
-        .modal-error { font-size:0.72em; color:var(--red); margin-top:12px; text-align:center; min-height:16px; }
-        .modal-close { position:absolute; top:16px; right:16px; background:none; border:none; color:var(--text-dim); font-size:1.2em; cursor:pointer; padding:4px 8px; border-radius:4px; transition:color 0.2s; }
-        .modal-close:hover { color:var(--text); }
-
-        /* ── Layout ── */
-        .container { position:relative; z-index:1; max-width:1500px; margin:0 auto; padding:28px 24px; }
-
-        header {
-            display:flex; align-items:flex-start; justify-content:space-between;
-            margin-bottom:28px; padding-bottom:20px; border-bottom:1px solid var(--green-border);
-        }
-        .logo-block h1 { font-weight:700; font-size:2em; letter-spacing:-0.03em; color:var(--green); line-height:1; }
-        .logo-block .team-names { font-size:0.65em; color:var(--text-dim); letter-spacing:0.04em; margin-top:4px; }
-        .logo-block .subtitle { font-size:0.68em; color:var(--text-dim); letter-spacing:0.08em; margin-top:2px; }
-        .header-right { display:flex; align-items:center; gap:14px; }
-        .system-status { display:flex; align-items:center; gap:8px; font-size:0.82em; color:var(--text-dim); }
-        .status-dot { width:9px; height:9px; border-radius:50%; background:var(--red); flex-shrink:0; transition:background 0.3s; }
-        .status-dot.online { background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s ease-in-out infinite; }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-        #status-text { color:var(--text); }
-        .auth-buttons { display:flex; gap:8px; }
-        .btn-auth { font-family:var(--mono); font-size:0.73em; letter-spacing:0.06em; padding:6px 13px; border-radius:5px; cursor:pointer; transition:all 0.2s; border:1px solid var(--green-border); }
-        .btn-login { background:none; color:var(--text-dim); }
-        .btn-login:hover { color:var(--text); border-color:var(--green-dim); }
-        .btn-register { background:var(--green); color:#000; border-color:var(--green); font-weight:700; }
-        .btn-register:hover { background:var(--green-dim); }
-        .btn-logout { background:none; color:var(--text-dim); border:1px solid var(--green-border); font-family:var(--mono); font-size:0.73em; letter-spacing:0.06em; padding:6px 13px; border-radius:5px; cursor:pointer; transition:all 0.2s; }
-        .btn-logout:hover { color:var(--red); border-color:rgba(255,68,102,0.4); }
-        .user-greeting { font-size:0.78em; color:var(--green); letter-spacing:0.04em; }
-
-        /* ── Section label ── */
-        .section-label { font-size:0.65em; color:var(--text-dim); letter-spacing:0.12em; text-transform:uppercase; margin-bottom:10px; padding-left:2px; }
-
-        /* ── Row 1: Primary numbers ── */
-        .row1 { display:grid; grid-template-columns:repeat(7,1fr); gap:10px; margin-bottom:10px; }
-
-        /* ── Row 2: Secondary numbers ── */
-        .row2 { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px; }
-
-        .stat-card {
-            background:var(--bg-card);
-            border:1px solid var(--green-border);
-            border-radius:8px;
-            padding:14px 12px;
-            text-align:center;
-            transition:border-color 0.2s, background 0.2s;
-        }
-        .stat-card:hover { border-color:var(--green-dim); background:var(--bg-card2); }
-        .stat-card .lbl { font-size:0.6em; color:var(--text-dim); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px; }
-        .stat-card .val { font-size:1.65em; color:var(--green); line-height:1; font-weight:500; }
-        .stat-card .val.pct { font-size:1.4em; }
-        .stat-card .val.dim { color:var(--text-dim); }
-
-        /* ── Bottom section ── */
-        .bottom-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
-
-        /* ── Stream cards ── */
-        .stream-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:10px; overflow:hidden; }
-        .stream-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--green-border); }
-        .cam-label { font-size:0.75em; color:var(--green); letter-spacing:0.06em; }
-        .badge { font-size:0.68em; color:var(--text-dim); background:rgba(0,255,136,0.07); border:1px solid var(--green-border); padding:3px 8px; border-radius:4px; }
-        .stream-body { position:relative; background:#000; aspect-ratio:16/9; overflow:hidden; }
-        .stream-body video { width:100%; height:100%; object-fit:cover; display:block; opacity:0; transition:opacity 0.4s; }
-        .stream-body video.loaded { opacity:1; }
-        .stream-placeholder { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; color:var(--text-dim); font-size:0.78em; transition:opacity 0.3s; }
-        .stream-placeholder.hidden { opacity:0; pointer-events:none; }
-        .court-svg { width:110px; height:74px; }
-        .court-line { stroke:var(--green); stroke-width:1.5; fill:none; stroke-dasharray:300; stroke-dashoffset:300; animation:draw 2s ease forwards infinite; }
-        .court-line:nth-child(2) { animation-delay:0.3s; stroke-dasharray:100; stroke-dashoffset:100; }
-        .court-line:nth-child(3) { animation-delay:0.6s; stroke-dasharray:150; stroke-dashoffset:150; }
-        .court-line:nth-child(4) { animation-delay:0.9s; stroke-dasharray:80; stroke-dashoffset:80; }
-        @keyframes draw { 0%{stroke-dashoffset:300;opacity:1} 60%{stroke-dashoffset:0;opacity:1} 80%{stroke-dashoffset:0;opacity:1} 100%{stroke-dashoffset:0;opacity:0} }
-        .court-label { letter-spacing:0.1em; animation:blink 1.5s ease-in-out infinite; }
-        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
-        .stream-error { display:none; position:absolute; bottom:0; left:0; right:0; background:rgba(255,68,102,0.12); border-top:1px solid rgba(255,68,102,0.35); color:#ff6680; font-size:0.68em; padding:7px 14px; text-align:center; }
-
-        /* ── Shot Chart ── */
-        .chart-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:10px; overflow:hidden; }
-        .chart-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--green-border); }
-        .chart-title { font-size:0.75em; color:var(--green); letter-spacing:0.06em; }
-        .chart-body { padding:16px; position:relative; }
-        #shot-chart-canvas { width:100%; border-radius:4px; }
-
-        /* ── Charts Row ── */
-        .charts-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
-
-        /* ── Arc Trend ── */
-        .arc-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:10px; overflow:hidden; }
-        .arc-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--green-border); }
-        .arc-title { font-size:0.75em; color:var(--green); letter-spacing:0.06em; }
-        .arc-body { padding:16px; }
-        #arc-canvas { width:100%; border-radius:4px; }
-
-        /* ── Footer ── */
-        footer { border-top:1px solid var(--green-border); padding-top:16px; display:flex; justify-content:space-between; align-items:center; font-size:0.68em; color:var(--text-dim); flex-wrap:wrap; gap:8px; }
-
-        /* ── Responsive ── */
-
-        /* Tablet landscape / small desktop */
-        @media (max-width:1200px) {
-            .row1 { grid-template-columns:repeat(4,1fr); }
-            .bottom-grid { grid-template-columns:1fr 1fr; }
-            .arc-body canvas { height:100px; }
-        }
-
-        /* Tablet portrait */
-        @media (max-width:900px) {
-            .container { padding:20px 16px; }
-            .logo-block h1 { font-size:1.6em; }
-            .row1 { grid-template-columns:repeat(3,1fr); gap:8px; }
-            .row2 { grid-template-columns:repeat(3,1fr); gap:8px; }
-            .bottom-grid { grid-template-columns:1fr 1fr; gap:12px; }
-            .charts-row { grid-template-columns:1fr 1fr; }
-            .stat-card .val { font-size:1.4em; }
-            .stat-card .val.pct { font-size:1.2em; }
-            header { flex-direction:column; gap:12px; align-items:flex-start; }
-            .header-right { width:100%; justify-content:space-between; }
-        }
-
-        /* Phone landscape */
-        @media (max-width:700px) {
-            .container { padding:16px 12px; }
-            .logo-block h1 { font-size:1.4em; }
-            .logo-block .team-names { display:none; }
-            .row1 { grid-template-columns:repeat(3,1fr); gap:7px; }
-            .row2 { grid-template-columns:repeat(3,1fr); gap:7px; }
-            .bottom-grid { grid-template-columns:1fr; gap:12px; }
-            .stat-card { padding:10px 8px; }
-            .stat-card .lbl { font-size:0.55em; }
-            .stat-card .val { font-size:1.3em; }
-            .stream-header { padding:10px 12px; }
-            .cam-label { font-size:0.68em; }
-            .section-label { font-size:0.6em; }
-        }
-
-        /* Charts row responsive */
-        @media (max-width:700px) {
-            .charts-row { grid-template-columns:1fr; }
-        }
-
-        /* Phone portrait */
-        @media (max-width:480px) {
-            .container { padding:14px 10px; }
-            .logo-block h1 { font-size:1.2em; }
-            .logo-block .subtitle { display:none; }
-            .row1 { grid-template-columns:repeat(2,1fr); gap:6px; }
-            .row2 { grid-template-columns:repeat(2,1fr); gap:6px; }
-            .stat-card { padding:10px 8px; }
-            .stat-card .val { font-size:1.2em; }
-            .stat-card .val.pct { font-size:1.1em; }
-            .auth-buttons { gap:6px; }
-            .btn-auth { font-size:0.68em; padding:5px 10px; }
-            .system-status { font-size:0.75em; }
-            .header-right { flex-wrap:wrap; gap:8px; }
-            .badge { font-size:0.62em; padding:2px 6px; }
-            .cam-label { font-size:0.65em; }
-            #arc-canvas { height:90px !important; }
-        }
-
-        /* Very small phones */
-        @media (max-width:360px) {
-            .row1 { grid-template-columns:repeat(2,1fr); }
-            .logo-block h1 { font-size:1.1em; }
-            .stat-card .val { font-size:1.1em; }
-        }
-    </style>
+<style>
+body { background:#050a07; display:flex; align-items:center; justify-content:center; height:100vh; margin:0; font-family:'IBM Plex Mono',monospace; flex-direction:column; gap:40px; }
+.row { display:flex; align-items:flex-end; gap:60px; }
+.item { display:flex; flex-direction:column; align-items:center; gap:8px; }
+.label { color:#5a7a63; font-size:11px; }
+.tab { background:#1a1a2e; border-radius:8px 8px 0 0; padding:8px 16px; display:flex; align-items:center; gap:8px; color:#ccc; font-size:13px; width:220px; }
+</style>
 </head>
 <body>
+<div class="row">
 
-<!-- Auth Modal -->
-<div class="modal-overlay" id="auth-modal">
-    <div class="modal">
-        <button class="modal-close" id="modal-close">✕</button>
-        <h2>HoopIQ</h2>
-        <p class="modal-sub">CECS490 SENIOR PROJECT — TEAM 2</p>
-        <div class="modal-tabs">
-            <button class="modal-tab active" id="tab-login" onclick="switchTab('login')">LOGIN</button>
-            <button class="modal-tab" id="tab-register" onclick="switchTab('register')">REGISTER</button>
-        </div>
-        <div id="form-login">
-            <div class="form-group"><label>Email</label><input type="email" id="login-email" placeholder="you@example.com"></div>
-            <div class="form-group"><label>Password</label><input type="password" id="login-password" placeholder="••••••••"></div>
-            <button class="btn-primary" onclick="handleLogin()">SIGN IN</button>
-        </div>
-        <div id="form-register" style="display:none">
-            <div class="form-group"><label>Full Name</label><input type="text" id="reg-name" placeholder="Your name"></div>
-            <div class="form-group"><label>Email</label><input type="email" id="reg-email" placeholder="you@example.com"></div>
-            <div class="form-group"><label>Password</label><input type="password" id="reg-password" placeholder="••••••••"></div>
-            <div class="form-group"><label>Confirm Password</label><input type="password" id="reg-confirm" placeholder="••••••••"></div>
-            <button class="btn-primary" onclick="handleRegister()">CREATE ACCOUNT</button>
-        </div>
-        <div class="modal-error" id="auth-error"></div>
+  <div class="item">
+    <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+      <!-- Backboard (3D perspective, slightly angled) -->
+      <rect x="3" y="4" width="12" height="9" rx="1" fill="#00ff88"/>
+      <!-- Backboard side depth -->
+      <polygon points="15,4 17,6 17,15 15,13" fill="#00cc6a"/>
+      <!-- Backboard bottom depth -->
+      <polygon points="3,13 15,13 17,15 5,15" fill="#009955"/>
+      <!-- Arm -->
+      <rect x="8" y="13" width="2" height="4" fill="#00ff88"/>
+      <!-- Hoop ring (3D ellipse - wider than tall for perspective) -->
+      <ellipse cx="13" cy="18" rx="9" ry="3.5" fill="none" stroke="#00ff88" stroke-width="2.2"/>
+      <!-- Net lines -->
+      <line x1="5"  y1="18" x2="6"  y2="28" stroke="#00ff88" stroke-width="1"/>
+      <line x1="8"  y1="18" x2="8.5" y2="28" stroke="#00ff88" stroke-width="1"/>
+      <line x1="11" y1="18" x2="11" y2="28" stroke="#00ff88" stroke-width="1"/>
+      <line x1="14" y1="18" x2="13.5" y2="28" stroke="#00ff88" stroke-width="1"/>
+      <line x1="17" y1="18" x2="16" y2="28" stroke="#00ff88" stroke-width="1"/>
+      <line x1="20" y1="18" x2="18.5" y2="28" stroke="#00ff88" stroke-width="1"/>
+      <!-- Net cross lines -->
+      <line x1="5.2" y1="21" x2="19" y2="21" stroke="#00ff88" stroke-width="0.7" opacity="0.55"/>
+      <line x1="5.6" y1="24" x2="18.2" y2="24" stroke="#00ff88" stroke-width="0.7" opacity="0.55"/>
+      <line x1="6"   y1="27" x2="17.5" y2="27" stroke="#00ff88" stroke-width="0.7" opacity="0.55"/>
+      <!-- Net bottom curve -->
+      <path d="M6 28 Q12 31 18.5 28" fill="none" stroke="#00ff88" stroke-width="1"/>
+    </svg>
+    <div class="label">32x32</div>
+  </div>
+
+  <div class="item">
+    <svg width="64" height="64" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+      <rect x="3" y="4" width="12" height="9" rx="1" fill="#00ff88"/>
+      <polygon points="15,4 17,6 17,15 15,13" fill="#00cc6a"/>
+      <polygon points="3,13 15,13 17,15 5,15" fill="#009955"/>
+      <rect x="8" y="13" width="2" height="4" fill="#00ff88"/>
+      <ellipse cx="13" cy="18" rx="9" ry="3.5" fill="none" stroke="#00ff88" stroke-width="2.2"/>
+      <line x1="5"  y1="18" x2="6"  y2="28" stroke="#00ff88" stroke-width="1"/>
+      <line x1="8"  y1="18" x2="8.5" y2="28" stroke="#00ff88" stroke-width="1"/>
+      <line x1="11" y1="18" x2="11" y2="28" stroke="#00ff88" stroke-width="1"/>
+      <line x1="14" y1="18" x2="13.5" y2="28" stroke="#00ff88" stroke-width="1"/>
+      <line x1="17" y1="18" x2="16" y2="28" stroke="#00ff88" stroke-width="1"/>
+      <line x1="20" y1="18" x2="18.5" y2="28" stroke="#00ff88" stroke-width="1"/>
+      <line x1="5.2" y1="21" x2="19" y2="21" stroke="#00ff88" stroke-width="0.7" opacity="0.55"/>
+      <line x1="5.6" y1="24" x2="18.2" y2="24" stroke="#00ff88" stroke-width="0.7" opacity="0.55"/>
+      <line x1="6"   y1="27" x2="17.5" y2="27" stroke="#00ff88" stroke-width="0.7" opacity="0.55"/>
+      <path d="M6 28 Q12 31 18.5 28" fill="none" stroke="#00ff88" stroke-width="1"/>
+    </svg>
+    <div class="label">64x64</div>
+  </div>
+
+  <div class="item">
+    <div class="tab">
+      <svg width="16" height="16" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="4" width="12" height="9" rx="1" fill="#00ff88"/>
+        <polygon points="15,4 17,6 17,15 15,13" fill="#00cc6a"/>
+        <polygon points="3,13 15,13 17,15 5,15" fill="#009955"/>
+        <rect x="8" y="13" width="2" height="4" fill="#00ff88"/>
+        <ellipse cx="13" cy="18" rx="9" ry="3.5" fill="none" stroke="#00ff88" stroke-width="2.2"/>
+        <line x1="5"  y1="18" x2="6"  y2="28" stroke="#00ff88" stroke-width="1"/>
+        <line x1="8"  y1="18" x2="8.5" y2="28" stroke="#00ff88" stroke-width="1"/>
+        <line x1="11" y1="18" x2="11" y2="28" stroke="#00ff88" stroke-width="1"/>
+        <line x1="14" y1="18" x2="13.5" y2="28" stroke="#00ff88" stroke-width="1"/>
+        <line x1="17" y1="18" x2="16" y2="28" stroke="#00ff88" stroke-width="1"/>
+        <line x1="20" y1="18" x2="18.5" y2="28" stroke="#00ff88" stroke-width="1"/>
+        <line x1="5.2" y1="21" x2="19" y2="21" stroke="#00ff88" stroke-width="0.7" opacity="0.55"/>
+        <line x1="5.6" y1="24" x2="18.2" y2="24" stroke="#00ff88" stroke-width="0.7" opacity="0.55"/>
+        <line x1="6"   y1="27" x2="17.5" y2="27" stroke="#00ff88" stroke-width="0.7" opacity="0.55"/>
+        <path d="M6 28 Q12 31 18.5 28" fill="none" stroke="#00ff88" stroke-width="1"/>
+      </svg>
+      HoopIQ — Live Basket...
     </div>
+    <div class="label">In browser tab</div>
+  </div>
+
 </div>
-
-<div class="container">
-
-    <header>
-        <div class="logo-block">
-            <h1>HoopIQ <span style="font-size:0.42em;font-weight:400;color:var(--green-dim);letter-spacing:0.05em;vertical-align:middle;">— TEAM 2</span></h1>
-            <div class="team-names">Christopher Hong &mdash; Gondra Kelly &mdash; Matthew Marguiles &mdash; Alfonso Mejia Vasquez &mdash; Carlos Orozco</div>
-            <div class="subtitle">CECS490 SENIOR PROJECT</div>
-        </div>
-        <div class="header-right">
-            <div class="system-status">
-                <div class="status-dot" id="status-dot"></div>
-                <span id="status-text">Connecting...</span>
-            </div>
-            <div class="auth-buttons" id="auth-buttons">
-                <button class="btn-auth btn-login" onclick="openModal('login')">LOGIN</button>
-                <button class="btn-auth btn-register" onclick="openModal('register')">REGISTER</button>
-            </div>
-            <div id="user-info" style="display:none;align-items:center;gap:12px;">
-                <span class="user-greeting" id="user-greeting"></span>
-                <button class="btn-logout" onclick="handleLogout()">LOGOUT</button>
-            </div>
-        </div>
-    </header>
-
-    <!-- Row 1: Primary Stats -->
-    <div class="section-label">Shot Statistics</div>
-    <div class="row1">
-        <div class="stat-card"><div class="lbl">Attempts</div><div class="val" id="attempts">--</div></div>
-        <div class="stat-card"><div class="lbl">Makes</div><div class="val" id="makes">--</div></div>
-        <div class="stat-card"><div class="lbl">FG%</div><div class="val pct" id="fg-pct">--</div></div>
-        <div class="stat-card"><div class="lbl">2PT%</div><div class="val pct" id="two-pct">--</div></div>
-        <div class="stat-card"><div class="lbl">3PT%</div><div class="val pct" id="three-pct">--</div></div>
-        <div class="stat-card"><div class="lbl">Rim Hits</div><div class="val" id="rim">--</div></div>
-        <div class="stat-card"><div class="lbl">Swishes</div><div class="val" id="swishes">--</div></div>
-    </div>
-
-    <!-- Row 2: Secondary Stats -->
-    <div class="section-label" style="margin-top:16px;">Advanced</div>
-    <div class="row2">
-        <div class="stat-card"><div class="lbl">Avg Arc</div><div class="val pct" id="avg-arc">--</div></div>
-        <div class="stat-card"><div class="lbl">Avg Entry Angle</div><div class="val pct" id="avg-entry">--</div></div>
-        <div class="stat-card"><div class="lbl">Streak</div><div class="val" id="streak">--</div></div>
-    </div>
-
-    <!-- Bottom: Streams + Charts -->
-    <div class="section-label">Live Feeds &amp; Analytics</div>
-    <div class="bottom-grid">
-
-        <!-- Basketball Stream -->
-        <div class="stream-card">
-            <div class="stream-header">
-                <span class="cam-label">C920 / BASKETBALL TRACKER</span>
-                <span class="badge" id="b-points-badge">-- pts</span>
-            </div>
-            <div class="stream-body">
-                <video id="basketball-img" autoplay muted playsinline disableRemotePlayback></video>
-                <div class="stream-placeholder" id="basketball-placeholder">
-                    <svg class="court-svg" viewBox="0 0 120 80">
-                        <rect class="court-line" x="5" y="5" width="110" height="70" rx="2"/>
-                        <circle class="court-line" cx="60" cy="40" r="15"/>
-                        <line class="court-line" x1="60" y1="5" x2="60" y2="75"/>
-                        <path class="court-line" d="M 20 5 Q 5 40 20 75"/>
-                    </svg>
-                    <span class="court-label">Connecting to stream...</span>
-                </div>
-                <div class="stream-error" id="basketball-error">Stream unavailable — Pi may be offline</div>
-            </div>
-        </div>
-
-        <!-- Heatmap Stream -->
-        <div class="stream-card">
-            <div class="stream-header">
-                <span class="cam-label">C922X / PLAYER HEATMAP</span>
-                <span class="badge" id="h-session-badge">00:00:00</span>
-            </div>
-            <div class="stream-body">
-                <video id="heatmap-img" autoplay muted playsinline disableRemotePlayback></video>
-                <div class="stream-placeholder" id="heatmap-placeholder">
-                    <svg class="court-svg" viewBox="0 0 120 80">
-                        <rect class="court-line" x="5" y="5" width="110" height="70" rx="2"/>
-                        <circle class="court-line" cx="60" cy="40" r="15"/>
-                        <line class="court-line" x1="60" y1="5" x2="60" y2="75"/>
-                        <path class="court-line" d="M 20 5 Q 5 40 20 75"/>
-                    </svg>
-                    <span class="court-label">Connecting to stream...</span>
-                </div>
-                <div class="stream-error" id="heatmap-error">Stream unavailable — Pi may be offline</div>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- Charts Row: Shot Chart + Arc Trend side by side -->
-    <div class="charts-row">
-        <div class="chart-card">
-            <div class="chart-header">
-                <span class="chart-title">SHOT CHART</span>
-                <span class="badge" id="shot-count-badge">0 shots</span>
-            </div>
-            <div class="chart-body">
-                <canvas id="shot-chart-canvas" height="180"></canvas>
-            </div>
-        </div>
-        <div class="arc-card">
-            <div class="arc-header">
-                <span class="arc-title">ARC TREND GRAPH</span>
-                <span class="badge" id="arc-streak-badge">Streak: --</span>
-            </div>
-            <div class="arc-body">
-                <canvas id="arc-canvas" height="180"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <footer>
-        <span>HoopIQ &copy; 2026 &mdash; CECS490 Team 2</span>
-        <span id="last-update">Last update: --</span>
-    </footer>
-</div>
-
-<script>
-    const MEDIAMTX = 'https://hoopiq.tail6a4dd0.ts.net';
-    const CLOUD    = 'https://cecs490-senior-project.onrender.com';
-
-    // ── Auth ──────────────────────────────────────────────────────────
-    const USERS_KEY = 'hoopiq_users', SESSION_KEY = 'hoopiq_session';
-    const getUsers   = () => { try { return JSON.parse(localStorage.getItem(USERS_KEY)||'{}'); } catch { return {}; } };
-    const saveUsers  = u  => localStorage.setItem(USERS_KEY, JSON.stringify(u));
-    const getSession = () => { try { return JSON.parse(localStorage.getItem(SESSION_KEY)||'null'); } catch { return null; } };
-    const saveSession= s  => localStorage.setItem(SESSION_KEY, JSON.stringify(s));
-    const clearSession=()  => localStorage.removeItem(SESSION_KEY);
-
-    function openModal(tab) { document.getElementById('auth-modal').classList.add('active'); switchTab(tab||'login'); document.getElementById('auth-error').textContent=''; }
-    function closeModal()   { document.getElementById('auth-modal').classList.remove('active'); }
-    document.getElementById('modal-close').onclick = closeModal;
-    document.getElementById('auth-modal').addEventListener('click', e => { if(e.target===document.getElementById('auth-modal')) closeModal(); });
-
-    function switchTab(tab) {
-        document.getElementById('form-login').style.display    = tab==='login'    ? 'block':'none';
-        document.getElementById('form-register').style.display = tab==='register' ? 'block':'none';
-        document.getElementById('tab-login').classList.toggle('active',    tab==='login');
-        document.getElementById('tab-register').classList.toggle('active', tab==='register');
-        document.getElementById('auth-error').textContent = '';
-    }
-
-    function handleLogin() {
-        const email=document.getElementById('login-email').value.trim(), pass=document.getElementById('login-password').value;
-        const users=getUsers(), err=document.getElementById('auth-error');
-        if(!email||!pass){err.textContent='Please fill in all fields.';return;}
-        if(!users[email]){err.textContent='No account found with that email.';return;}
-        if(users[email].password!==btoa(pass)){err.textContent='Incorrect password.';return;}
-        saveSession({email,name:users[email].name}); updateAuthUI(); closeModal();
-    }
-
-    function handleRegister() {
-        const name=document.getElementById('reg-name').value.trim(), email=document.getElementById('reg-email').value.trim();
-        const pass=document.getElementById('reg-password').value, confirm=document.getElementById('reg-confirm').value;
-        const users=getUsers(), err=document.getElementById('auth-error');
-        if(!name||!email||!pass||!confirm){err.textContent='Please fill in all fields.';return;}
-        if(pass!==confirm){err.textContent='Passwords do not match.';return;}
-        if(pass.length<6){err.textContent='Password must be at least 6 characters.';return;}
-        if(users[email]){err.textContent='An account with that email already exists.';return;}
-        users[email]={name,password:btoa(pass)}; saveUsers(users); saveSession({email,name}); updateAuthUI(); closeModal();
-    }
-
-    function handleLogout() { clearSession(); updateAuthUI(); }
-
-    function updateAuthUI() {
-        const s=getSession();
-        document.getElementById('auth-buttons').style.display = s ? 'none':'flex';
-        document.getElementById('user-info').style.display    = s ? 'flex':'none';
-        if(s) document.getElementById('user-greeting').textContent = 'Hi, '+s.name.split(' ')[0];
-    }
-
-    // ── WebRTC ────────────────────────────────────────────────────────
-    async function startWebRTC(videoId, placeholderId, errorId, streamPath) {
-        const video=document.getElementById(videoId), placeholder=document.getElementById(placeholderId), error=document.getElementById(errorId);
-        const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-        pc.addTransceiver('video',{direction:'recvonly'});
-        pc.ontrack = evt => {
-            video.srcObject=evt.streams[0]; video.play().catch(()=>{});
-            video.classList.add('loaded'); placeholder.classList.add('hidden'); error.style.display='none';
-            if('requestVideoFrameCallback' in video) { video.requestVideoFrameCallback(function d(){ video.requestVideoFrameCallback(d); }); }
-        };
-        pc.oniceconnectionstatechange = () => {
-            if(pc.iceConnectionState==='failed'||pc.iceConnectionState==='disconnected') {
-                error.style.display='block';
-                setTimeout(()=>{ error.style.display='none'; startWebRTC(videoId,placeholderId,errorId,streamPath); }, 5000);
-            }
-        };
-        try {
-            const offer=await pc.createOffer(); await pc.setLocalDescription(offer);
-            await new Promise(r=>{ if(pc.iceGatheringState==='complete'){r();return;} pc.onicegatheringstatechange=()=>{ if(pc.iceGatheringState==='complete') r(); }; setTimeout(r,3000); });
-            const resp=await fetch(`${MEDIAMTX}/${streamPath}/whep`,{method:'POST',headers:{'Content-Type':'application/sdp'},body:pc.localDescription.sdp});
-            if(!resp.ok) throw new Error(`WHEP ${resp.status}`);
-            await pc.setRemoteDescription({type:'answer',sdp:await resp.text()});
-        } catch(e) {
-            error.style.display='block';
-            setTimeout(()=>{ error.style.display='none'; startWebRTC(videoId,placeholderId,errorId,streamPath); }, 5000);
-        }
-    }
-
-    // ── Shot Chart Canvas ─────────────────────────────────────────────
-    function drawShotChart(shotData) {
-        const canvas = document.getElementById('shot-chart-canvas');
-        const ctx = canvas.getContext('2d');
-        const dpr = window.devicePixelRatio || 1;
-        const W = canvas.offsetWidth || 400;
-        const H = 260;
-        canvas.width  = W * dpr;
-        canvas.height = H * dpr;
-        canvas.style.height = H + 'px';
-        ctx.scale(dpr, dpr);
-        ctx.clearRect(0, 0, W, H);
-
-        // ── Court background ──────────────────────────────────────────
-        const pad = 20;
-        const cW = W - pad*2, cH = H - pad - 40; // leave bottom for legend
-        const cx = pad + cW/2, baseline = pad + cH;
-
-        // Court fill
-        ctx.fillStyle = 'rgba(0,255,136,0.03)';
-        ctx.fillRect(pad, pad, cW, cH);
-
-        // Court lines
-        ctx.strokeStyle = 'rgba(0,255,136,0.25)';
-        ctx.lineWidth = 1.2;
-
-        // Outer boundary
-        ctx.strokeRect(pad, pad, cW, cH);
-
-        // Three point arc — radius ~75% of court width
-        const arcR = cW * 0.44;
-        ctx.beginPath();
-        ctx.arc(cx, baseline, arcR, Math.PI, 0);
-        // Corner three lines
-        const cornerX = cx - arcR;
-        const cornerX2 = cx + arcR;
-        const cornerH = cH * 0.28;
-        ctx.moveTo(pad, baseline - cornerH);
-        ctx.lineTo(cornerX, baseline - cornerH);
-        ctx.moveTo(cornerX2, baseline - cornerH);
-        ctx.lineTo(pad + cW, baseline - cornerH);
-        ctx.stroke();
-
-        // Paint / lane
-        const laneW = cW * 0.22, laneH = cH * 0.32;
-        const laneX = cx - laneW/2;
-        ctx.strokeRect(laneX, baseline - laneH, laneW, laneH);
-
-        // Free throw circle
-        ctx.beginPath();
-        ctx.arc(cx, baseline - laneH, laneW/2, Math.PI, 0);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(cx, baseline - laneH, laneW/2, 0, Math.PI);
-        ctx.setLineDash([4, 4]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Basket circle
-        ctx.beginPath();
-        ctx.arc(cx, baseline - cH*0.05, cW*0.03, 0, Math.PI*2);
-        ctx.stroke();
-
-        // Backboard
-        ctx.beginPath();
-        ctx.moveTo(cx - cW*0.07, baseline - cH*0.035);
-        ctx.lineTo(cx + cW*0.07, baseline - cH*0.035);
-        ctx.stroke();
-
-        // No data state
-        if (!shotData || shotData.length === 0) {
-            ctx.fillStyle = 'rgba(90,122,99,0.5)';
-            ctx.font = '10px IBM Plex Mono';
-            ctx.textAlign = 'center';
-            ctx.fillText('No shot data yet', cx, pad + cH/2);
-            // Draw legend anyway
-            drawLegend(ctx, W, H, pad, 0, 0);
-            return;
-        }
-
-        // ── Plot shots ────────────────────────────────────────────────
-        let makes = 0, misses = 0;
-        shotData.forEach(shot => {
-            // shot.x and shot.y are 0-100 percentages of court
-            const x = pad + (shot.x / 100) * cW;
-            const y = pad + (shot.y / 100) * cH;
-            const made = shot.made;
-            if (made) makes++; else misses++;
-
-            ctx.beginPath();
-            ctx.arc(x, y, 5, 0, Math.PI*2);
-            ctx.fillStyle = made ? 'rgba(255,140,0,0.85)' : 'rgba(100,220,255,0.75)';
-            ctx.fill();
-            ctx.strokeStyle = made ? '#ff8c00' : '#64dcff';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-        });
-
-        drawLegend(ctx, W, H, pad, makes, misses);
-        document.getElementById('shot-count-badge').textContent = shotData.length + ' shots';
-    }
-
-    function drawLegend(ctx, W, H, pad, makes, misses) {
-        const legendY = H - 22;
-        ctx.font = '10px IBM Plex Mono';
-        ctx.textAlign = 'left';
-
-        // Made dot
-        ctx.beginPath();
-        ctx.arc(pad + 8, legendY, 5, 0, Math.PI*2);
-        ctx.fillStyle = 'rgba(255,140,0,0.9)';
-        ctx.fill();
-        ctx.strokeStyle = '#ff8c00';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        ctx.fillStyle = 'rgba(255,140,0,1)';
-        ctx.fillText('made' + (makes ? ' ('+makes+')' : ''), pad + 18, legendY + 4);
-
-        // Missed dot
-        ctx.beginPath();
-        ctx.arc(pad + 90, legendY, 5, 0, Math.PI*2);
-        ctx.fillStyle = 'rgba(100,220,255,0.85)';
-        ctx.fill();
-        ctx.strokeStyle = '#64dcff';
-        ctx.stroke();
-        ctx.fillStyle = 'rgba(100,220,255,0.9)';
-        ctx.fillText('missed' + (misses ? ' ('+misses+')' : ''), pad + 100, legendY + 4);
-    }
-
-    // ── Arc Trend Canvas ──────────────────────────────────────────────
-    let arcHistory = [];
-    function updateArcTrend(avgArc, avgEntry) {
-        if (avgArc !== null && avgArc !== undefined) {
-            arcHistory.push({ arc: avgArc, entry: avgEntry });
-            if (arcHistory.length > 50) arcHistory.shift();
-        }
-
-        const canvas = document.getElementById('arc-canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = canvas.offsetWidth * window.devicePixelRatio || 800;
-        canvas.height = 120 * window.devicePixelRatio || 120;
-        ctx.scale(window.devicePixelRatio||1, window.devicePixelRatio||1);
-        const W = canvas.offsetWidth || 800, H = 120;
-
-        ctx.clearRect(0,0,W,H);
-
-        // Grid lines
-        ctx.strokeStyle = 'rgba(0,255,136,0.07)';
-        ctx.lineWidth = 1;
-        for (let i=0; i<=4; i++) {
-            const y = 10 + (i/4)*(H-20);
-            ctx.beginPath(); ctx.moveTo(10,y); ctx.lineTo(W-10,y); ctx.stroke();
-        }
-
-        if (arcHistory.length === 0) {
-            ctx.fillStyle = 'rgba(90,122,99,0.6)';
-            ctx.font = '10px IBM Plex Mono';
-            ctx.textAlign = 'center';
-            ctx.fillText('No arc data yet — waiting for basketball camera', W/2, H/2);
-            return;
-        }
-
-        const vals = arcHistory.map(d=>d.arc);
-        const minV = Math.min(...vals)-5, maxV = Math.max(...vals)+5;
-        const toY = v => H-10 - ((v-minV)/(maxV-minV))*(H-20);
-        const toX = i => 10 + (i/(Math.max(arcHistory.length-1,1)))*(W-20);
-
-        // Arc line
-        ctx.beginPath();
-        ctx.strokeStyle = '#00ff88';
-        ctx.lineWidth = 2;
-        arcHistory.forEach((d,i)=>{ i===0 ? ctx.moveTo(toX(i),toY(d.arc)) : ctx.lineTo(toX(i),toY(d.arc)); });
-        ctx.stroke();
-
-        // Fill under line
-        ctx.beginPath();
-        arcHistory.forEach((d,i)=>{ i===0 ? ctx.moveTo(toX(i),toY(d.arc)) : ctx.lineTo(toX(i),toY(d.arc)); });
-        ctx.lineTo(toX(arcHistory.length-1), H-10);
-        ctx.lineTo(toX(0), H-10);
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(0,255,136,0.06)';
-        ctx.fill();
-
-        // Dots
-        arcHistory.forEach((d,i)=>{
-            ctx.beginPath();
-            ctx.arc(toX(i), toY(d.arc), 3, 0, Math.PI*2);
-            ctx.fillStyle = '#00ff88';
-            ctx.fill();
-        });
-
-        // Y axis label
-        ctx.fillStyle = 'rgba(0,255,136,0.4)';
-        ctx.font = '9px IBM Plex Mono';
-        ctx.textAlign = 'left';
-        ctx.fillText(maxV.toFixed(0)+'°', 2, 14);
-        ctx.fillText(minV.toFixed(0)+'°', 2, H-4);
-    }
-
-    // ── Stats ─────────────────────────────────────────────────────────
-    function fmt(v, suffix='') { return (v === null || v === undefined) ? '--' : v + suffix; }
-
-    async function updateStats() {
-        try {
-            const r = await fetch(`${CLOUD}/stats`, {cache:'no-store'});
-            if(!r.ok) throw new Error();
-            const d = await r.json();
-            const online = d.system?.online ?? false;
-            document.getElementById('status-dot').className = 'status-dot' + (online ? ' online' : '');
-            document.getElementById('status-text').textContent = online ? 'Online' : 'Offline';
-
-            const b = d.basketball || {}, s = d.sensors || {}, h = d.heatmap || {};
-
-            setText('attempts',   fmt(b.attempts));
-            setText('makes',      fmt(b.makes));
-            setText('fg-pct',     b.fg_percent     !== null && b.fg_percent     !== undefined ? b.fg_percent+'%'  : '--');
-            setText('two-pct',    b.two_pt_percent  !== null && b.two_pt_percent  !== undefined ? b.two_pt_percent+'%'  : '--');
-            setText('three-pct',  b.three_pt_percent!== null && b.three_pt_percent!== undefined ? b.three_pt_percent+'%' : '--');
-            setText('rim',        fmt(s.rim_hits));
-            setText('swishes',    fmt(b.swishes));
-            setText('avg-arc',    b.avg_arc        !== null && b.avg_arc        !== undefined ? b.avg_arc+'°'     : '--');
-            setText('avg-entry',  b.avg_entry_angle!== null && b.avg_entry_angle!== undefined ? b.avg_entry_angle+'°' : '--');
-            setText('streak',     fmt(b.streak));
-
-            document.getElementById('b-points-badge').textContent = fmt(h.heatmap_points) + ' pts';
-            document.getElementById('arc-streak-badge').textContent = 'Streak: ' + fmt(b.streak);
-
-            drawShotChart(b.shot_chart || []);
-            updateArcTrend(b.avg_arc, b.avg_entry_angle);
-
-        } catch {
-            document.getElementById('status-dot').className = 'status-dot';
-            document.getElementById('status-text').textContent = 'Offline';
-        }
-    }
-
-    function setText(id, val) { const el=document.getElementById(id); if(el) el.textContent=val; }
-
-    // ── Clock ─────────────────────────────────────────────────────────
-    function startClock() {
-        const tick = () => document.getElementById('last-update').textContent = 'Last update: ' + new Date().toLocaleTimeString();
-        tick(); setInterval(tick, 1000);
-    }
-
-    function startSessionTimer() {
-        const start = Date.now();
-        const tick = () => {
-            const e=Math.floor((Date.now()-start)/1000);
-            const h=String(Math.floor(e/3600)).padStart(2,'0');
-            const m=String(Math.floor((e%3600)/60)).padStart(2,'0');
-            const s=String(e%60).padStart(2,'0');
-            document.getElementById('h-session-badge').textContent = h+':'+m+':'+s;
-        };
-        tick(); setInterval(tick, 1000);
-    }
-
-    // ── Boot ──────────────────────────────────────────────────────────
-    updateAuthUI();
-    startWebRTC('basketball-img','basketball-placeholder','basketball-error','basketball');
-    startWebRTC('heatmap-img',   'heatmap-placeholder',   'heatmap-error',   'heatmap');
-    startClock();
-    startSessionTimer();
-    updateStats();
-    setInterval(updateStats, 2000);
-    window.addEventListener('resize', () => { drawShotChart([]); updateArcTrend(null, null); });
-</script>
 </body>
 </html>
