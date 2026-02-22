@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HoopIQ — Live Basketball Analytics</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='8' y='2' width='16' height='10' rx='1' fill='none' stroke='%2300ff88' stroke-width='1.5'/%3E%3Cline x1='16' y1='12' x2='16' y2='15' stroke='%2300ff88' stroke-width='1.5'/%3E%3Cellipse cx='16' cy='16' rx='8' ry='2.5' fill='none' stroke='%2300ff88' stroke-width='2'/%3E%3Cline x1='10' y1='16' x2='11' y2='26' stroke='%2300ff88' stroke-width='1'/%3E%3Cline x1='13' y1='16' x2='13.5' y2='26' stroke='%2300ff88' stroke-width='1'/%3E%3Cline x1='16' y1='16' x2='16' y2='26' stroke='%2300ff88' stroke-width='1'/%3E%3Cline x1='19' y1='16' x2='18.5' y2='26' stroke='%2300ff88' stroke-width='1'/%3E%3Cline x1='22' y1='16' x2='21' y2='26' stroke='%2300ff88' stroke-width='1'/%3E%3Cpath d='M11 26 Q16 29 21 26' fill='none' stroke='%2300ff88' stroke-width='1'/%3E%3Cline x1='10' y1='19' x2='22' y2='19' stroke='%2300ff88' stroke-width='0.7' opacity='0.5'/%3E%3Cline x1='10.5' y1='22' x2='21.5' y2='22' stroke='%2300ff88' stroke-width='0.7' opacity='0.5'/%3E%3C/svg%3E">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3CclipPath id='c'%3E%3Ccircle cx='50' cy='50' r='46'/%3E%3C/clipPath%3E%3C/defs%3E%3Ccircle cx='50' cy='50' r='46' fill='%2300ff88'/%3E%3Cellipse cx='50' cy='85' rx='26' ry='8' fill='%2300bb77' opacity='0.4'/%3E%3Cg clip-path='url(%23c)' fill='none' stroke='%23050a07' stroke-linecap='round' stroke-linejoin='round' stroke-width='5.5'%3E%3Cpath d='M 4 50 Q 30 38 50 40 Q 70 38 96 50'/%3E%3Cpath d='M 50 40 Q 18 42 6 50 Q 18 58 50 60'/%3E%3Cpath d='M 50 4 Q 44 22 50 40'/%3E%3Cpath d='M 50 40 Q 72 32 88 14'/%3E%3Cpath d='M 50 60 Q 72 68 88 86'/%3E%3Cpath d='M 50 60 Q 44 78 50 96'/%3E%3C/g%3E%3C/svg%3E">
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -541,9 +541,9 @@
 
             ctx.beginPath();
             ctx.arc(x, y, 5, 0, Math.PI*2);
-            ctx.fillStyle = made ? 'rgba(255,100,180,0.75)' : 'rgba(100,220,255,0.75)';
+            ctx.fillStyle = made ? 'rgba(255,140,0,0.85)' : 'rgba(100,220,255,0.75)';
             ctx.fill();
-            ctx.strokeStyle = made ? '#ff64b4' : '#64dcff';
+            ctx.strokeStyle = made ? '#ff8c00' : '#64dcff';
             ctx.lineWidth = 1;
             ctx.stroke();
         });
@@ -560,12 +560,12 @@
         // Made dot
         ctx.beginPath();
         ctx.arc(pad + 8, legendY, 5, 0, Math.PI*2);
-        ctx.fillStyle = 'rgba(255,100,180,0.85)';
+        ctx.fillStyle = 'rgba(255,140,0,0.9)';
         ctx.fill();
-        ctx.strokeStyle = '#ff64b4';
+        ctx.strokeStyle = '#ff8c00';
         ctx.lineWidth = 1;
         ctx.stroke();
-        ctx.fillStyle = 'rgba(255,100,180,0.9)';
+        ctx.fillStyle = 'rgba(255,140,0,1)';
         ctx.fillText('made' + (makes ? ' ('+makes+')' : ''), pad + 18, legendY + 4);
 
         // Missed dot
