@@ -147,15 +147,67 @@
         footer { border-top:1px solid var(--green-border); padding-top:16px; display:flex; justify-content:space-between; align-items:center; font-size:0.68em; color:var(--text-dim); flex-wrap:wrap; gap:8px; }
 
         /* ── Responsive ── */
-        @media (max-width:1100px) {
+
+        /* Tablet landscape / small desktop */
+        @media (max-width:1200px) {
             .row1 { grid-template-columns:repeat(4,1fr); }
             .bottom-grid { grid-template-columns:1fr 1fr; }
+            .arc-body canvas { height:100px; }
         }
+
+        /* Tablet portrait */
+        @media (max-width:900px) {
+            .container { padding:20px 16px; }
+            .logo-block h1 { font-size:1.6em; }
+            .row1 { grid-template-columns:repeat(3,1fr); gap:8px; }
+            .row2 { grid-template-columns:repeat(3,1fr); gap:8px; }
+            .bottom-grid { grid-template-columns:1fr 1fr; gap:12px; }
+            .stat-card .val { font-size:1.4em; }
+            .stat-card .val.pct { font-size:1.2em; }
+            header { flex-direction:column; gap:12px; align-items:flex-start; }
+            .header-right { width:100%; justify-content:space-between; }
+        }
+
+        /* Phone landscape */
         @media (max-width:700px) {
+            .container { padding:16px 12px; }
+            .logo-block h1 { font-size:1.4em; }
+            .logo-block .team-names { display:none; }
+            .row1 { grid-template-columns:repeat(3,1fr); gap:7px; }
+            .row2 { grid-template-columns:repeat(3,1fr); gap:7px; }
+            .bottom-grid { grid-template-columns:1fr; gap:12px; }
+            .stat-card { padding:10px 8px; }
+            .stat-card .lbl { font-size:0.55em; }
+            .stat-card .val { font-size:1.3em; }
+            .stream-header { padding:10px 12px; }
+            .cam-label { font-size:0.68em; }
+            .section-label { font-size:0.6em; }
+        }
+
+        /* Phone portrait */
+        @media (max-width:480px) {
+            .container { padding:14px 10px; }
+            .logo-block h1 { font-size:1.2em; }
+            .logo-block .subtitle { display:none; }
+            .row1 { grid-template-columns:repeat(2,1fr); gap:6px; }
+            .row2 { grid-template-columns:repeat(2,1fr); gap:6px; }
+            .stat-card { padding:10px 8px; }
+            .stat-card .val { font-size:1.2em; }
+            .stat-card .val.pct { font-size:1.1em; }
+            .auth-buttons { gap:6px; }
+            .btn-auth { font-size:0.68em; padding:5px 10px; }
+            .system-status { font-size:0.75em; }
+            .header-right { flex-wrap:wrap; gap:8px; }
+            .badge { font-size:0.62em; padding:2px 6px; }
+            .cam-label { font-size:0.65em; }
+            #arc-canvas { height:90px !important; }
+        }
+
+        /* Very small phones */
+        @media (max-width:360px) {
             .row1 { grid-template-columns:repeat(2,1fr); }
-            .row2 { grid-template-columns:repeat(2,1fr); }
-            .bottom-grid { grid-template-columns:1fr; }
-            header { flex-direction:column; gap:14px; }
+            .logo-block h1 { font-size:1.1em; }
+            .stat-card .val { font-size:1.1em; }
         }
     </style>
 </head>
