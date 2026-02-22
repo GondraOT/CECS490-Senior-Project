@@ -107,7 +107,7 @@
         .stat-card .val.dim { color:var(--text-dim); }
 
         /* ── Bottom section ── */
-        .bottom-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-bottom:20px; }
+        .bottom-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
 
         /* ── Stream cards ── */
         .stream-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:10px; overflow:hidden; }
@@ -136,6 +136,9 @@
         .chart-body { padding:16px; position:relative; }
         #shot-chart-canvas { width:100%; border-radius:4px; }
 
+        /* ── Charts Row ── */
+        .charts-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
+
         /* ── Arc Trend ── */
         .arc-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:10px; overflow:hidden; }
         .arc-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--green-border); }
@@ -162,6 +165,7 @@
             .row1 { grid-template-columns:repeat(3,1fr); gap:8px; }
             .row2 { grid-template-columns:repeat(3,1fr); gap:8px; }
             .bottom-grid { grid-template-columns:1fr 1fr; gap:12px; }
+            .charts-row { grid-template-columns:1fr 1fr; }
             .stat-card .val { font-size:1.4em; }
             .stat-card .val.pct { font-size:1.2em; }
             header { flex-direction:column; gap:12px; align-items:flex-start; }
@@ -182,6 +186,11 @@
             .stream-header { padding:10px 12px; }
             .cam-label { font-size:0.68em; }
             .section-label { font-size:0.6em; }
+        }
+
+        /* Charts row responsive */
+        @media (max-width:700px) {
+            .charts-row { grid-template-columns:1fr; }
         }
 
         /* Phone portrait */
@@ -329,7 +338,10 @@
             </div>
         </div>
 
-        <!-- Shot Chart -->
+    </div>
+
+    <!-- Charts Row: Shot Chart + Arc Trend side by side -->
+    <div class="charts-row">
         <div class="chart-card">
             <div class="chart-header">
                 <span class="chart-title">SHOT CHART</span>
@@ -339,17 +351,14 @@
                 <canvas id="shot-chart-canvas" height="180"></canvas>
             </div>
         </div>
-
-    </div>
-
-    <!-- Arc Trend full width -->
-    <div class="arc-card" style="margin-bottom:20px;">
-        <div class="arc-header">
-            <span class="arc-title">ARC TREND GRAPH</span>
-            <span class="badge" id="arc-streak-badge">Streak: --</span>
-        </div>
-        <div class="arc-body">
-            <canvas id="arc-canvas" height="120"></canvas>
+        <div class="arc-card">
+            <div class="arc-header">
+                <span class="arc-title">ARC TREND GRAPH</span>
+                <span class="badge" id="arc-streak-badge">Streak: --</span>
+            </div>
+            <div class="arc-body">
+                <canvas id="arc-canvas" height="180"></canvas>
+            </div>
         </div>
     </div>
 
