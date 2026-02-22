@@ -218,6 +218,28 @@
             .logo-block h1 { font-size:1.1em; }
             .stat-card .val { font-size:1.1em; }
         }
+        /* ── Mute Button ── */
+        .mute-btn {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 50;
+            background: var(--bg-card);
+            border: 1px solid var(--green-border);
+            border-radius: 8px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            cursor: pointer;
+            font-family: var(--mono);
+            font-size: 0.7em;
+            color: var(--text-dim);
+            letter-spacing: 0.06em;
+            transition: all 0.2s;
+        }
+        .mute-btn:hover { border-color: var(--green-dim); color: var(--text); }
+        .mute-btn .icon { font-size: 1em; }
     </style>
 </head>
 <body>
@@ -715,6 +737,41 @@
     updateStats();
     setInterval(updateStats, 2000);
     window.addEventListener('resize', () => { drawShotChart([]); updateArcTrend(null, null); });
+</script>
+<!-- Background Music -->
+<audio id="bg-music" loop>
+    <source src="https://raw.githubusercontent.com/GondraOT/CECS490-Senior-Project/main/hoopiq-api/BG.mp3" type="audio/mpeg">
+</audio>
+
+<!-- Mute Button -->
+<button class="mute-btn" id="mute-btn" onclick="toggleMute()">
+    <span class="icon" id="mute-icon">🔊</span>
+    <span id="mute-label">MUSIC</span>
+</button>
+
+<script>
+    const music = document.getElementById('bg-music');
+    const muteIcon = document.getElementById('mute-icon');
+    const muteLabel = document.getElementById('mute-label');
+    let muted = false;
+
+    // Start at 40% volume (4/10)
+    music.volume = 0.4;
+
+    // Autoplay on first user interaction
+    document.addEventListener('click', function startMusic() {
+        music.play().catch(() => {});
+        document.removeEventListener('click', startMusic);
+    }, { once: true });
+
+    function toggleMute() {
+        muted = !muted;
+        music.muted = muted;
+        muteIcon.textContent = muted ? '🔇' : '🔊';
+        muteLabel.textContent = muted ? 'MUTED' : 'MUSIC';
+        document.getElementById('mute-btn').style.borderColor = muted ? 'rgba(255,68,102,0.4)' : '';
+        document.getElementById('mute-btn').style.color = muted ? 'rgba(255,68,102,0.7)' : '';
+    }
 </script>
 </body>
 </html>
