@@ -696,7 +696,7 @@
             setText('avg-entry',  b.avg_entry_angle!== null && b.avg_entry_angle!== undefined ? b.avg_entry_angle+'°' : '--');
             setText('streak',     fmt(b.streak));
 
-            document.getElementById('b-points-badge').textContent = fmt(h.heatmap_points) + ' pts';
+            document.getElementById('b-points-badge').textContent = fmt(b.makes) + ' pts';
             document.getElementById('arc-streak-badge').textContent = 'Streak: ' + fmt(b.streak);
 
             drawShotChart(b.shot_chart || []);
