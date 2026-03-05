@@ -129,6 +129,24 @@
         .arc-body { padding:16px; }
         #arc-canvas { width:100%; border-radius:4px; }
 
+        /* ── Zone Accuracy ── */
+        .zone-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:10px; overflow:hidden; margin-bottom:16px; }
+        .zone-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--green-border); }
+        .zone-title { font-size:0.75em; color:var(--green); letter-spacing:0.06em; }
+        .zone-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; padding:16px; }
+        @media (max-width:700px) { .zone-grid { grid-template-columns:repeat(3,1fr); } }
+        @media (max-width:480px) { .zone-grid { grid-template-columns:repeat(2,1fr); } }
+        .zone-item { background:var(--bg-card2); border:1px solid var(--green-border); border-radius:8px; padding:12px 8px; text-align:center; transition:border-color 0.2s; }
+        .zone-item:hover { border-color:var(--green-dim); }
+        .zone-name { font-size:0.58em; color:var(--text-dim); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:8px; min-height:2.4em; display:flex; align-items:center; justify-content:center; }
+        .zone-pct { font-size:1.5em; font-weight:500; line-height:1; margin-bottom:4px; }
+        .zone-shots { font-size:0.6em; color:var(--text-dim); letter-spacing:0.06em; }
+        .zone-bar-track { height:4px; background:rgba(0,255,136,0.1); border-radius:2px; margin-top:8px; }
+        .zone-bar-fill { height:4px; border-radius:2px; transition:width 0.4s ease; }
+        .zone-hot { color:#ff8c00; }
+        .zone-warm { color:#00ff88; }
+        .zone-cold { color:#5a7a63; }
+
         /* ── Shot Type indicator ── */
         .last-shot-badge { display:inline-block; font-size:0.68em; padding:3px 10px; border-radius:4px; border:1px solid var(--green-border); background:rgba(0,255,136,0.07); color:var(--green); letter-spacing:0.06em; margin-top:4px; }
         .last-shot-badge.swish { border-color:rgba(0,229,255,0.4); background:rgba(0,229,255,0.07); color:var(--cyan); }
@@ -290,6 +308,47 @@
             </div>
         </div>
 
+    </div>
+
+    <!-- Zone Accuracy -->
+    <div class="section-label">Shot Zone Accuracy</div>
+    <div class="zone-card">
+        <div class="zone-header">
+            <span class="zone-title">FG% BY COURT ZONE</span>
+            <span class="badge" id="best-zone-badge">Best zone: --</span>
+        </div>
+        <div class="zone-grid" id="zone-grid">
+            <div class="zone-item" id="zone-left-corner">
+                <div class="zone-name">Left Corner 3</div>
+                <div class="zone-pct zone-cold" id="z-pct-lc">--</div>
+                <div class="zone-shots" id="z-shots-lc">0 shots</div>
+                <div class="zone-bar-track"><div class="zone-bar-fill" id="z-bar-lc" style="width:0%;background:var(--green)"></div></div>
+            </div>
+            <div class="zone-item" id="zone-right-corner">
+                <div class="zone-name">Right Corner 3</div>
+                <div class="zone-pct zone-cold" id="z-pct-rc">--</div>
+                <div class="zone-shots" id="z-shots-rc">0 shots</div>
+                <div class="zone-bar-track"><div class="zone-bar-fill" id="z-bar-rc" style="width:0%;background:var(--green)"></div></div>
+            </div>
+            <div class="zone-item" id="zone-above-break">
+                <div class="zone-name">Above Break 3</div>
+                <div class="zone-pct zone-cold" id="z-pct-ab">--</div>
+                <div class="zone-shots" id="z-shots-ab">0 shots</div>
+                <div class="zone-bar-track"><div class="zone-bar-fill" id="z-bar-ab" style="width:0%;background:var(--green)"></div></div>
+            </div>
+            <div class="zone-item" id="zone-midrange">
+                <div class="zone-name">Mid-Range</div>
+                <div class="zone-pct zone-cold" id="z-pct-mr">--</div>
+                <div class="zone-shots" id="z-shots-mr">0 shots</div>
+                <div class="zone-bar-track"><div class="zone-bar-fill" id="z-bar-mr" style="width:0%;background:var(--green)"></div></div>
+            </div>
+            <div class="zone-item" id="zone-paint">
+                <div class="zone-name">Paint</div>
+                <div class="zone-pct zone-cold" id="z-pct-pt">--</div>
+                <div class="zone-shots" id="z-shots-pt">0 shots</div>
+                <div class="zone-bar-track"><div class="zone-bar-fill" id="z-bar-pt" style="width:0%;background:var(--green)"></div></div>
+            </div>
+        </div>
     </div>
 
     <!-- Charts Row -->
@@ -495,6 +554,77 @@
         ctx.fillStyle = 'rgba(255,68,102,0.9)'; ctx.fillText('missed' + (misses ? ' ('+misses+')' : ''), pad + 165, legendY + 4);
     }
 
+    // ── Zone Accuracy ──────────────────────────────────────────────────
+    const ZONE_MAP = {
+        'Left Corner 3':  { pct:'z-pct-lc', shots:'z-shots-lc', bar:'z-bar-lc' },
+        'Right Corner 3': { pct:'z-pct-rc', shots:'z-shots-rc', bar:'z-bar-rc' },
+        'Above Break 3':  { pct:'z-pct-ab', shots:'z-shots-ab', bar:'z-bar-ab' },
+        'Mid-Range':      { pct:'z-pct-mr', shots:'z-shots-mr', bar:'z-bar-mr' },
+        'Paint':          { pct:'z-pct-pt', shots:'z-shots-pt', bar:'z-bar-pt' },
+    };
+
+    function updateZones(shotData) {
+        if (!shotData || shotData.length === 0) return;
+
+        // Aggregate by zone
+        const zones = {};
+        for (const z of Object.keys(ZONE_MAP)) {
+            zones[z] = { makes: 0, attempts: 0 };
+        }
+        shotData.forEach(shot => {
+            const z = shot.zone;
+            if (zones[z]) {
+                zones[z].attempts++;
+                if (shot.made) zones[z].makes++;
+            }
+        });
+
+        // Find best zone for badge
+        let bestZone = null, bestPct = -1;
+        for (const [name, data] of Object.entries(zones)) {
+            if (data.attempts >= 2) {
+                const pct = data.makes / data.attempts * 100;
+                if (pct > bestPct) { bestPct = pct; bestZone = name; }
+            }
+        }
+        const badge = document.getElementById('best-zone-badge');
+        if (badge) badge.textContent = bestZone ? `Best: ${bestZone} (${bestPct.toFixed(0)}%)` : 'Best zone: --';
+
+        // Update each zone card
+        for (const [name, ids] of Object.entries(ZONE_MAP)) {
+            const data = zones[name];
+            const pctEl    = document.getElementById(ids.pct);
+            const shotsEl  = document.getElementById(ids.shots);
+            const barEl    = document.getElementById(ids.bar);
+            if (!pctEl) continue;
+
+            if (data.attempts === 0) {
+                pctEl.textContent   = '--';
+                shotsEl.textContent = '0 shots';
+                barEl.style.width   = '0%';
+                pctEl.className     = 'zone-pct zone-cold';
+                continue;
+            }
+
+            const pct = data.makes / data.attempts * 100;
+            pctEl.textContent   = pct.toFixed(0) + '%';
+            shotsEl.textContent = data.attempts + ' shot' + (data.attempts !== 1 ? 's' : '');
+            barEl.style.width   = pct + '%';
+
+            // Color by performance
+            if (pct >= 50) {
+                pctEl.className   = 'zone-pct zone-hot';
+                barEl.style.background = 'var(--orange)';
+            } else if (pct >= 30) {
+                pctEl.className   = 'zone-pct zone-warm';
+                barEl.style.background = 'var(--green)';
+            } else {
+                pctEl.className   = 'zone-pct zone-cold';
+                barEl.style.background = 'rgba(0,255,136,0.3)';
+            }
+        }
+    }
+
     // ── Arc Trend Canvas ──────────────────────────────────────────────
     let arcHistory = [];
     function updateArcTrend(avgArc, avgEntry) {
@@ -582,6 +712,7 @@
             document.getElementById('arc-streak-badge').textContent = 'Streak: ' + fmt(b.streak);
 
             drawShotChart(b.shot_chart || []);
+            updateZones(b.shot_chart || []);
             updateArcTrend(b.avg_arc, b.avg_entry_angle);
 
         } catch {
@@ -618,7 +749,7 @@
     startSessionTimer();
     updateStats();
     setInterval(updateStats, 2000);
-    window.addEventListener('resize', () => { drawShotChart([]); updateArcTrend(null, null); });
+    window.addEventListener('resize', () => { drawShotChart([]); updateArcTrend(null, null); updateZones([]); });
 </script>
 
 <!-- Background Music -->
