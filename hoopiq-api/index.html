@@ -71,13 +71,11 @@
         .section-label { font-size:0.65em; color:var(--text-dim); letter-spacing:0.12em; text-transform:uppercase; margin-bottom:10px; padding-left:2px; }
 
         /* ── Row 1: Primary Shot Stats (9 cards) ── */
-        .row1 { display:grid; grid-template-columns:repeat(9,1fr); gap:10px; margin-bottom:10px; }
+        .row1 { display:grid; grid-template-columns:repeat(8,1fr); gap:10px; margin-bottom:10px; }
 
         /* ── Row 2: Shot Type breakdown ── */
-        .row2 { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:10px; }
+        .row2 { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:10px; }
 
-        /* ── Row 3: Advanced ── */
-        .row3 { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px; }
 
         .stat-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:8px; padding:14px 12px; text-align:center; transition:border-color 0.2s, background 0.2s; }
         .stat-card:hover { border-color:var(--green-dim); background:var(--bg-card2); }
@@ -122,7 +120,7 @@
         /* ── Charts Row ── */
         .charts-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
 
-        /* ── Arc Trend ── */
+        /* ── Makes vs Misses ── */
         .arc-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:10px; overflow:hidden; }
         .arc-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--green-border); }
         .arc-title { font-size:0.75em; color:var(--green); letter-spacing:0.06em; }
@@ -157,7 +155,7 @@
         footer { border-top:1px solid var(--green-border); padding-top:16px; display:flex; justify-content:space-between; align-items:center; font-size:0.68em; color:var(--text-dim); flex-wrap:wrap; gap:8px; }
 
         /* ── Responsive ── */
-        @media (max-width:1200px) { .row1 { grid-template-columns:repeat(5,1fr); } .row2 { grid-template-columns:repeat(4,1fr); } }
+        @media (max-width:1200px) { .row1 { grid-template-columns:repeat(5,1fr); } .row2 { grid-template-columns:repeat(3,1fr); } }
         @media (max-width:900px) { .row1 { grid-template-columns:repeat(3,1fr); } .row2 { grid-template-columns:repeat(2,1fr); } .row3 { grid-template-columns:repeat(3,1fr); } .bottom-grid { grid-template-columns:1fr 1fr; } }
         @media (max-width:700px) { .row1 { grid-template-columns:repeat(3,1fr); } .row2 { grid-template-columns:repeat(2,1fr); } .bottom-grid { grid-template-columns:1fr; } .charts-row { grid-template-columns:1fr; } }
         @media (max-width:480px) { .row1 { grid-template-columns:repeat(2,1fr); } .row2 { grid-template-columns:repeat(2,1fr); } .row3 { grid-template-columns:repeat(2,1fr); } }
@@ -227,7 +225,6 @@
         <div class="stat-card"><div class="lbl">FG%</div><div class="val pct" id="fg-pct">--</div></div>
         <div class="stat-card"><div class="lbl">2PT%</div><div class="val pct" id="two-pct">--</div></div>
         <div class="stat-card"><div class="lbl">3PT%</div><div class="val pct" id="three-pct">--</div></div>
-        <div class="stat-card"><div class="lbl">Swishes</div><div class="val cyan" id="swishes">--</div></div>
         <div class="stat-card"><div class="lbl">Rim Hits</div><div class="val" id="rim">--</div></div>
         <div class="stat-card"><div class="lbl">Backboard</div><div class="val" id="backboard">--</div></div>
         <div class="stat-card"><div class="lbl">Streak</div><div class="val" id="streak">--</div></div>
@@ -236,10 +233,6 @@
     <!-- Row 2: Shot Type Breakdown -->
     <div class="section-label" style="margin-top:16px;">Shot Type Breakdown</div>
     <div class="row2">
-        <div class="stat-card">
-            <div class="lbl">Swish Makes</div>
-            <div class="val cyan" id="swish-makes">--</div>
-        </div>
         <div class="stat-card">
             <div class="lbl">Backboard Makes</div>
             <div class="val orange" id="backboard-makes">--</div>
@@ -254,13 +247,7 @@
         </div>
     </div>
 
-    <!-- Row 3: Advanced -->
-    <div class="section-label" style="margin-top:16px;">Advanced</div>
-    <div class="row3">
-        <div class="stat-card"><div class="lbl">Avg Arc</div><div class="val pct" id="avg-arc">--</div></div>
-        <div class="stat-card"><div class="lbl">Avg Entry Angle</div><div class="val pct" id="avg-entry">--</div></div>
-        <div class="stat-card"><div class="lbl">Players Detected</div><div class="val dim" id="players">--</div></div>
-    </div>
+
 
     <!-- Bottom: Streams -->
     <div class="section-label">Live Feeds &amp; Analytics</div>
@@ -270,7 +257,7 @@
         <div class="stream-card">
             <div class="stream-header">
                 <span class="cam-label">BASKETBALL TRACKER</span>
-                <span class="badge" id="b-points-badge">-- pts</span>
+                <span class="badge" id="b-shots-badge">0 shots</span>
             </div>
             <div class="stream-body">
                 <video id="basketball-img" autoplay muted playsinline disableRemotePlayback></video>
@@ -291,7 +278,7 @@
         <div class="stream-card">
             <div class="stream-header">
                 <span class="cam-label">PLAYER HEATMAP</span>
-                <span class="badge" id="h-session-badge">00:00:00</span>
+                <span class="badge" id="h-players-badge">0 players</span><span class="badge" id="h-session-badge" style="margin-left:6px;">00:00:00</span>
             </div>
             <div class="stream-body">
                 <video id="heatmap-img" autoplay muted playsinline disableRemotePlayback></video>
@@ -364,7 +351,7 @@
         </div>
         <div class="arc-card">
             <div class="arc-header">
-                <span class="arc-title">ARC TREND GRAPH</span>
+                <span class="arc-title">MAKES vs MISSES</span>
                 <span class="badge" id="arc-streak-badge">Streak: --</span>
             </div>
             <div class="arc-body">
@@ -625,40 +612,7 @@
         }
     }
 
-    // ── Arc Trend Canvas ──────────────────────────────────────────────
-    let arcHistory = [];
-    function updateArcTrend(avgArc, avgEntry) {
-        if (avgArc !== null && avgArc !== undefined) {
-            arcHistory.push({ arc: avgArc, entry: avgEntry });
-            if (arcHistory.length > 50) arcHistory.shift();
-        }
-        const canvas = document.getElementById('arc-canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = canvas.offsetWidth * window.devicePixelRatio || 800;
-        canvas.height = 120 * window.devicePixelRatio || 120;
-        ctx.scale(window.devicePixelRatio||1, window.devicePixelRatio||1);
-        const W = canvas.offsetWidth || 800, H = 120;
-        ctx.clearRect(0,0,W,H);
-        ctx.strokeStyle = 'rgba(0,255,136,0.07)'; ctx.lineWidth = 1;
-        for (let i=0; i<=4; i++) { const y = 10 + (i/4)*(H-20); ctx.beginPath(); ctx.moveTo(10,y); ctx.lineTo(W-10,y); ctx.stroke(); }
-        if (arcHistory.length === 0) {
-            ctx.fillStyle = 'rgba(90,122,99,0.6)'; ctx.font = '10px IBM Plex Mono'; ctx.textAlign = 'center';
-            ctx.fillText('No arc data yet — waiting for shot data', W/2, H/2); return;
-        }
-        const vals = arcHistory.map(d=>d.arc), minV = Math.min(...vals)-5, maxV = Math.max(...vals)+5;
-        const toY = v => H-10 - ((v-minV)/(maxV-minV))*(H-20);
-        const toX = i => 10 + (i/(Math.max(arcHistory.length-1,1)))*(W-20);
-        ctx.beginPath(); ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 2;
-        arcHistory.forEach((d,i)=>{ i===0 ? ctx.moveTo(toX(i),toY(d.arc)) : ctx.lineTo(toX(i),toY(d.arc)); });
-        ctx.stroke();
-        ctx.beginPath();
-        arcHistory.forEach((d,i)=>{ i===0 ? ctx.moveTo(toX(i),toY(d.arc)) : ctx.lineTo(toX(i),toY(d.arc)); });
-        ctx.lineTo(toX(arcHistory.length-1), H-10); ctx.lineTo(toX(0), H-10); ctx.closePath();
-        ctx.fillStyle = 'rgba(0,255,136,0.06)'; ctx.fill();
-        arcHistory.forEach((d,i)=>{ ctx.beginPath(); ctx.arc(toX(i), toY(d.arc), 3, 0, Math.PI*2); ctx.fillStyle = '#00ff88'; ctx.fill(); });
-        ctx.fillStyle = 'rgba(0,255,136,0.4)'; ctx.font = '9px IBM Plex Mono'; ctx.textAlign = 'left';
-        ctx.fillText(maxV.toFixed(0)+'°', 2, 14); ctx.fillText(minV.toFixed(0)+'°', 2, H-4);
-    }
+
 
     // ── Stats ─────────────────────────────────────────────────────────
     function fmt(v, suffix='') { return (v === null || v === undefined) ? '--' : v + suffix; }
@@ -686,13 +640,16 @@
             setText('fg-pct',     b.fg_percent !== null && b.fg_percent !== undefined ? b.fg_percent+'%' : '--');
             setText('two-pct',    b.two_pt_percent  !== null && b.two_pt_percent  !== undefined ? b.two_pt_percent+'%'  : '--');
             setText('three-pct',  b.three_pt_percent!== null && b.three_pt_percent!== undefined ? b.three_pt_percent+'%' : '--');
-            setText('swishes',    fmt(b.swishes));
             setText('rim',        fmt(s.rim_hits));
             setText('backboard',  fmt(s.backboard_hits));
-            setText('streak',     fmt(b.streak));
+            const streakVal = b.streak ?? 0;
+            const streakEl = document.getElementById('streak');
+            if (streakEl) {
+                streakEl.textContent = streakVal > 0 ? '+'+streakVal : streakVal === 0 ? '0' : streakVal;
+                streakEl.style.color = streakVal > 0 ? 'var(--green)' : streakVal < 0 ? 'var(--red)' : 'var(--text-dim)';
+            }
 
             // Shot type breakdown
-            setText('swish-makes',      fmt(b.swishes));
             setText('backboard-makes',  fmt(s.backboard_makes));
             setText('backboard-misses', fmt(s.backboard_misses));
 
@@ -704,16 +661,15 @@
                 lastShotEl.className = 'val small ' + getLastShotClass(lastShot);
             }
 
-            setText('players', fmt(h.current_players));
-            setText('avg-arc',   b.avg_arc   !== null && b.avg_arc   !== undefined ? b.avg_arc+'°'   : '--');
-            setText('avg-entry', b.avg_entry_angle !== null && b.avg_entry_angle !== undefined ? b.avg_entry_angle+'°' : '--');
 
-            document.getElementById('b-points-badge').textContent = fmt(b.makes) + ' pts';
-            document.getElementById('arc-streak-badge').textContent = 'Streak: ' + fmt(b.streak);
+            document.getElementById('b-shots-badge').textContent = fmt(b.attempts) + ' shots';
+            const playersEl = document.getElementById('h-players-badge');
+            if (playersEl) playersEl.textContent = fmt(h.current_players) + ' players';
+            document.getElementById('arc-streak-badge').textContent = 'Streak: ' + (streakVal > 0 ? '+'+streakVal : streakVal);
 
             drawShotChart(b.shot_chart || []);
             updateZones(b.shot_chart || []);
-            updateArcTrend(b.avg_arc, b.avg_entry_angle);
+            drawMakesVsMisses(b.shot_chart || []);
 
         } catch {
             document.getElementById('status-dot').className = 'status-dot';
@@ -749,7 +705,7 @@
     startSessionTimer();
     updateStats();
     setInterval(updateStats, 2000);
-    window.addEventListener('resize', () => { drawShotChart([]); updateArcTrend(null, null); updateZones([]); });
+    window.addEventListener('resize', () => { drawShotChart([]); drawMakesVsMisses([]); updateZones([]); });
 </script>
 
 <!-- Background Music -->
