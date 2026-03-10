@@ -1,11 +1,11 @@
 # HoopIQ Cloud API
 # Flask backend for receiving data from Raspberry Pi and serving to website
 
-from flask import Flask, jsonify, request, Response
+from flask import Flask, jsonify, request, Response, send_from_directory
 from flask_cors import CORS
 import time
 import base64
-from flask import send_from_directory
+import os
 
 app = Flask(__name__)
 CORS(app)
@@ -14,19 +14,18 @@ latest_data = {
     "basketball_fps": 0.0,
     "makes": 0,
     "attempts": 0,
-    "swishes": 0,
-    "backboard_hits": 0,
-    "backboard_makes": 0,
-    "backboard_misses": 0,
-    "rim_hits": 0,
-    "fg_percent": "0.0",
-    "last_shot_type": "—",
     "trajectories": 0,
+    "backboard_hits": 0,
+    "rim_hits": 0,
+    "swishes": 0,
+    "streak": 0,
+    "avg_arc": None,
+    "avg_entry_angle": None,
+    "shot_chart": [],
     "heatmap_fps": 0.0,
     "current_players": 0,
     "total_players_detected": 0,
     "heatmap_points": 0,
-    "shot_chart": [],
     "basketball_frame": "",
     "heatmap_frame": "",
     "timestamp": 0,
@@ -35,85 +34,69 @@ latest_data = {
 
 @app.route('/', methods=['GET'])
 def home():
-    return send_from_directory('.', 'index.html')
+    return send_from_directory(os.path.dirname(os.path.abspath(__file__)), 'index.html')
 
 @app.route('/update', methods=['POST'])
 def update_data():
     global latest_data
     try:
         data = request.json
-
         latest_data['basketball_fps']        = data.get('basketball_fps', 0)
         latest_data['makes']                 = data.get('makes', 0)
         latest_data['attempts']              = data.get('attempts', 0)
-        latest_data['swishes']               = data.get('swishes', 0)
-        latest_data['backboard_hits']        = data.get('backboard_hits', 0)
-        latest_data['backboard_makes']       = data.get('backboard_makes', 0)
-        latest_data['backboard_misses']      = data.get('backboard_misses', 0)
-        latest_data['rim_hits']              = data.get('rim_hits', 0)
-        latest_data['fg_percent']            = data.get('fg_percent', '0.0')
-        latest_data['last_shot_type']        = data.get('last_shot_type', '—')
         latest_data['trajectories']          = data.get('trajectories', 0)
+        latest_data['backboard_hits']        = data.get('backboard_hits', 0)
+        latest_data['rim_hits']              = data.get('rim_hits', 0)
+        latest_data['swishes']               = data.get('swishes', 0)
+        latest_data['streak']                = data.get('streak', 0)
+        latest_data['avg_arc']               = data.get('avg_arc', None)
+        latest_data['avg_entry_angle']       = data.get('avg_entry_angle', None)
+        latest_data['shot_chart']            = data.get('shot_chart', [])
         latest_data['heatmap_fps']           = data.get('heatmap_fps', 0)
         latest_data['current_players']       = data.get('current_players', 0)
         latest_data['total_players_detected']= data.get('total_players_detected', 0)
         latest_data['heatmap_points']        = data.get('heatmap_points', 0)
-        latest_data['shot_chart']            = data.get('shot_chart', [])
         latest_data['basketball_frame']      = data.get('basketball_frame', '')
         latest_data['heatmap_frame']         = data.get('heatmap_frame', '')
         latest_data['timestamp']             = data.get('timestamp', 0)
         latest_data['last_update']           = time.time()
-
-        return jsonify({"status": "success", "timestamp": latest_data['last_update']})
-
+        return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 400
 
 @app.route('/stats', methods=['GET'])
 def get_stats():
     is_online = (time.time() - latest_data['last_update']) < 5
+    makes    = latest_data['makes']
+    attempts = latest_data['attempts']
 
-    # Compute 2pt / 3pt breakdown from shot_chart
-    two_makes = two_att = three_makes = three_att = 0
-    three_zones = {"Left Corner 3", "Right Corner 3", "Above Break 3"}
-    for shot in latest_data['shot_chart']:
-        zone = shot.get('zone', '')
-        made = shot.get('made', False)
-        if zone in three_zones:
-            three_att += 1
-            if made: three_makes += 1
-        else:
-            two_att += 1
-            if made: two_makes += 1
+    # Calculate percentages — Flask handles this so Rust doesn't need to
+    fg_pct = round((makes / attempts * 100), 1) if attempts > 0 else None
 
-    two_pct   = round(two_makes   / two_att   * 100, 1) if two_att   > 0 else None
-    three_pct = round(three_makes / three_att * 100, 1) if three_att > 0 else None
+    # Shot chart zone breakdown for 2pt/3pt
+    shot_chart = latest_data['shot_chart']
+    two_makes = sum(1 for s in shot_chart if s.get('zone') == '2pt' and s.get('made'))
+    two_att   = sum(1 for s in shot_chart if s.get('zone') == '2pt')
+    three_makes = sum(1 for s in shot_chart if s.get('zone') == '3pt' and s.get('made'))
+    three_att   = sum(1 for s in shot_chart if s.get('zone') == '3pt')
 
-    # Compute current streak from shot_chart
-    streak = 0
-    for shot in reversed(latest_data['shot_chart']):
-        if shot.get('made'):
-            if streak >= 0: streak += 1
-            else: break
-        else:
-            if streak <= 0: streak -= 1
-            else: break
+    two_pct   = round((two_makes / two_att * 100), 1)   if two_att   > 0 else None
+    three_pct = round((three_makes / three_att * 100), 1) if three_att > 0 else None
 
     return jsonify({
         "basketball": {
-            "fps":              latest_data['basketball_fps'],
-            "makes":            latest_data['makes'],
-            "attempts":         latest_data['attempts'],
-            "swishes":          latest_data['swishes'],
-            "fg_percent":       latest_data['fg_percent'],
+            "fps":        latest_data['basketball_fps'],
+            "makes":      makes,
+            "attempts":   attempts,
+            "trajectories": latest_data['trajectories'],
+            "fg_percent": fg_pct,
             "two_pt_percent":   two_pct,
             "three_pt_percent": three_pct,
-            "last_shot_type":   latest_data['last_shot_type'],
-            "trajectories":     latest_data['trajectories'],
-            "streak":           streak,
-            "shot_chart":       latest_data['shot_chart'],
-            "avg_arc":          None,
-            "avg_entry_angle":  None,
+            "swishes":    latest_data['swishes'],
+            "streak":     latest_data['streak'],
+            "avg_arc":    latest_data['avg_arc'],
+            "avg_entry_angle": latest_data['avg_entry_angle'],
+            "shot_chart": shot_chart,
         },
         "heatmap": {
             "fps":             latest_data['heatmap_fps'],
@@ -122,10 +105,8 @@ def get_stats():
             "heatmap_points":  latest_data['heatmap_points'],
         },
         "sensors": {
-            "backboard_hits":   latest_data['backboard_hits'],
-            "backboard_makes":  latest_data['backboard_makes'],
-            "backboard_misses": latest_data['backboard_misses'],
-            "rim_hits":         latest_data['rim_hits'],
+            "backboard_hits": latest_data['backboard_hits'],
+            "rim_hits":       latest_data['rim_hits'],
         },
         "system": {
             "online":      is_online,
@@ -133,15 +114,32 @@ def get_stats():
         }
     })
 
+@app.route('/frame/basketball', methods=['GET'])
+def get_basketball_frame():
+    try:
+        if not latest_data['basketball_frame']:
+            return "No frame available", 404
+        return Response(base64.b64decode(latest_data['basketball_frame']), mimetype='image/jpeg')
+    except Exception as e:
+        return f"Error: {str(e)}", 500
+
+@app.route('/frame/heatmap', methods=['GET'])
+def get_heatmap_frame():
+    try:
+        if not latest_data['heatmap_frame']:
+            return "No frame available", 404
+        return Response(base64.b64decode(latest_data['heatmap_frame']), mimetype='image/jpeg')
+    except Exception as e:
+        return f"Error: {str(e)}", 500
+
 @app.route('/health', methods=['GET'])
 def health_check():
     is_online = (time.time() - latest_data['last_update']) < 5
     return jsonify({
-        "status":              "online" if is_online else "offline",
-        "last_update":         latest_data['last_update'],
+        "status": "online" if is_online else "offline",
+        "last_update": latest_data['last_update'],
         "seconds_since_update": time.time() - latest_data['last_update']
     })
 
 if __name__ == '__main__':
-    print("HoopIQ Cloud API v2.0 Starting...")
     app.run(host='0.0.0.0', port=8000, debug=True)
