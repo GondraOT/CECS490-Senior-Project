@@ -5,6 +5,7 @@ from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 import time
 import base64
+from flask import send_from_directory
 
 app = Flask(__name__)
 CORS(app)
@@ -31,8 +32,6 @@ latest_data = {
     "timestamp": 0,
     "last_update": 0
 }
-
-from flask import send_from_directory
 
 @app.route('/', methods=['GET'])
 def home():
