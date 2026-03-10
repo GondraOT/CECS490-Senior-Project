@@ -32,17 +32,11 @@ latest_data = {
     "last_update": 0
 }
 
+from flask import send_from_directory
+
 @app.route('/', methods=['GET'])
 def home():
-    return jsonify({
-        "name": "HoopIQ API",
-        "version": "2.0",
-        "endpoints": {
-            "/update": "POST - Pi sends data here",
-            "/stats":  "GET  - Get current statistics",
-            "/health": "GET  - Check if Pi is online"
-        }
-    })
+    return send_from_directory('.', 'index.html')
 
 @app.route('/update', methods=['POST'])
 def update_data():
