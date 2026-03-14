@@ -64,6 +64,23 @@ def update_data():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 400
 
+@app.route('/reset', methods=['POST'])
+def reset_data():
+    global latest_data
+    latest_data['makes']                  = 0
+    latest_data['attempts']               = 0
+    latest_data['trajectories']           = 0
+    latest_data['backboard_hits']         = 0
+    latest_data['rim_hits']               = 0
+    latest_data['swishes']                = 0
+    latest_data['streak']                 = 0
+    latest_data['avg_arc']                = None
+    latest_data['avg_entry_angle']        = None
+    latest_data['shot_chart']             = []
+    latest_data['heatmap_points']         = 0
+    latest_data['total_players_detected'] = 0
+    return jsonify({"status": "reset"})
+
 @app.route('/stats', methods=['GET'])
 def get_stats():
     is_online = (time.time() - latest_data['last_update']) < 5
