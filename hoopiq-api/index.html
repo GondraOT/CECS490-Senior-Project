@@ -74,7 +74,7 @@
         .row1 { display:grid; grid-template-columns:repeat(8,1fr); gap:10px; margin-bottom:10px; }
 
         /* ── Row 2: Shot Type breakdown ── */
-        row2 { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:10px; }
+       .row2 { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:10px; }
 
 
         .stat-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:8px; padding:14px 12px; text-align:center; transition:border-color 0.2s, background 0.2s; }
@@ -203,9 +203,10 @@
         </div>
         <div class="header-right">
             <div class="system-status">
-                <div class="status-dot" id="status-dot"></div>
-                <span id="status-text">Connecting...</span>
-            </div>
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text">Connecting...</span>
+</div>
+<button id="reset-btn" onclick="resetData()" style="font-family:var(--mono);font-size:0.73em;letter-spacing:0.06em;padding:6px 13px;border-radius:5px;cursor:pointer;background:none;color:var(--text-dim);border:1px solid var(--green-border);transition:all 0.2s;" onmouseover="this.style.color='var(--red)';this.style.borderColor='rgba(255,68,102,0.4)'" onmouseout="this.style.color='var(--text-dim)';this.style.borderColor='var(--green-border)'">RESET</button>
             <div class="auth-buttons" id="auth-buttons">
                 <button class="btn-auth btn-login" onclick="openModal('login')">LOGIN</button>
                 <button class="btn-auth btn-register" onclick="openModal('register')">REGISTER</button>
@@ -770,6 +771,12 @@
         }
     }
 
+    async function resetData() {
+    if (!confirm('Reset all shot data?')) return;
+    await fetch(`${CLOUD}/reset`, { method: 'POST' });
+    updateStats();
+}
+    
     function setText(id, val) { const el=document.getElementById(id); if(el) el.textContent=val; }
 
     // ── Clock ─────────────────────────────────────────────────────────
