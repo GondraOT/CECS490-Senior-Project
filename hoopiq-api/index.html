@@ -232,20 +232,20 @@
 
     <!-- Row 2: Shot Type Breakdown -->
     <div class="section-label" style="margin-top:16px;">Shot Type Breakdown</div>
-    <div class="row2">
-        <div class="stat-card">
-            <div class="lbl">Backboard Makes</div>
-            <div class="val orange" id="backboard-makes">--</div>
-        </div>
-        <div class="stat-card">
-            <div class="lbl">Backboard Misses</div>
-            <div class="val" style="color:var(--red)" id="backboard-misses">--</div>
-        </div>
-        <div class="stat-card">
-            <div class="lbl">Last Shot</div>
-            <div class="val small" id="last-shot-type">—</div>
-        </div>
+<div class="row2">
+    <div class="stat-card">
+        <div class="lbl">Swishes</div>
+        <div class="val cyan" id="swishes">--</div>
     </div>
+    <div class="stat-card">
+        <div class="lbl">Streak</div>
+        <div class="val" id="streak2">--</div>
+    </div>
+    <div class="stat-card">
+        <div class="lbl">Last Shot</div>
+        <div class="val small" id="last-shot-type">—</div>
+    </div>
+</div>
 
 
 
@@ -734,8 +734,8 @@
             }
 
             // Shot type breakdown
-            setText('backboard-makes',  fmt(s.backboard_makes));
-            setText('backboard-misses', fmt(s.backboard_misses));
+            setText('swishes', fmt(b.swishes));
+            setText('streak2', b.streak > 0 ? '+'+b.streak : b.streak ?? '0');
 
             // Last shot type with color
             const lastShot = b.last_shot_type || '—';
