@@ -234,12 +234,12 @@
     <div class="section-label" style="margin-top:16px;">Shot Type Breakdown</div>
 <div class="row2">
     <div class="stat-card">
-        <div class="lbl">Swishes</div>
-        <div class="val cyan" id="swishes">--</div>
+        <div class="lbl">Backboard Makes</div>
+        <div class="val orange" id="backboard-makes">--</div>
     </div>
     <div class="stat-card">
-        <div class="lbl">Streak</div>
-        <div class="val" id="streak2">--</div>
+        <div class="lbl">Backboard Misses</div>
+        <div class="val" style="color:var(--red)" id="backboard-misses">--</div>
     </div>
     <div class="stat-card">
         <div class="lbl">Last Shot</div>
@@ -734,8 +734,13 @@
             }
 
             // Shot type breakdown
-            setText('swishes', fmt(b.swishes));
-            setText('streak2', b.streak > 0 ? '+'+b.streak : b.streak ?? '0');
+            const shotChart = b.shot_chart || [];
+            const backboardMakes  = shotChart.filter(s => s.shot_type === 'Backboard Make').length;
+            const backboardMisses = shotChart.filter(s => s.shot_type === 'Backboard Miss').length;
+            const swishCount      = shotChart.filter(s => s.shot_type === 'Swish').length;
+            setText('backboard-makes',  backboardMakes);
+            setText('backboard-misses', backboardMisses);
+            setText('swishes', swishCount);
 
             // Last shot type with color
             const lastShot = b.last_shot_type || '—';
