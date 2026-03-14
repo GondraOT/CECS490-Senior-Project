@@ -74,7 +74,7 @@
         .row1 { display:grid; grid-template-columns:repeat(8,1fr); gap:10px; margin-bottom:10px; }
 
         /* ── Row 2: Shot Type breakdown ── */
-        .row2 { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:10px; }
+        row2 { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:10px; }
 
 
         .stat-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:8px; padding:14px 12px; text-align:center; transition:border-color 0.2s, background 0.2s; }
@@ -232,20 +232,24 @@
 
     <!-- Row 2: Shot Type Breakdown -->
     <div class="section-label" style="margin-top:16px;">Shot Type Breakdown</div>
-<div class="row2">
-    <div class="stat-card">
-        <div class="lbl">Backboard Makes</div>
-        <div class="val orange" id="backboard-makes">--</div>
+    <div class="row2">
+        <div class="stat-card">
+            <div class="lbl">Backboard Makes</div>
+            <div class="val orange" id="backboard-makes">--</div>
+        </div>
+        <div class="stat-card">
+            <div class="lbl">Backboard Misses</div>
+            <div class="val" style="color:var(--red)" id="backboard-misses">--</div>
+        </div>
+        <div class="stat-card">
+            <div class="lbl">Swishes</div>
+            <div class="val cyan" id="swishes">--</div>
+        </div>
+        <div class="stat-card">
+            <div class="lbl">Last Shot</div>
+            <div class="val small" id="last-shot-type">—</div>
+        </div>
     </div>
-    <div class="stat-card">
-        <div class="lbl">Backboard Misses</div>
-        <div class="val" style="color:var(--red)" id="backboard-misses">--</div>
-    </div>
-    <div class="stat-card">
-        <div class="lbl">Last Shot</div>
-        <div class="val small" id="last-shot-type">—</div>
-    </div>
-</div>
 
 
 
