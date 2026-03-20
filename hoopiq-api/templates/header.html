@@ -1,0 +1,31 @@
+<!--
+    Basketball Shot Tracker App
+    Developed by Christopher Hong, Gondra Kelly
+    Team Name: HoopIQ
+    Team Members: Christopher Hong, Alfonso Mejia Vasquez, Gondra Kelly, Matthew Margulies, Carlos Orozco
+    Start Web Development Date: October 2025
+    Finished Web Development Date: June 2026 (Ideally)
+    templates/header.html
+-->
+
+<header>
+    <div class="logo-block">
+        <h1>HoopIQ <span style="font-size:0.42em;font-weight:400;color:var(--green-dim);letter-spacing:0.05em;vertical-align:middle;">— TEAM 2</span></h1>
+        <div class="team-names">Christopher Hong &mdash; Gondra Kelly &mdash; Matthew Marguiles &mdash; Alfonso Mejia Vasquez &mdash; Carlos Orozco</div>
+        <div class="subtitle">CECS490 SENIOR PROJECT</div>
+    </div>
+    <div class="header-right">
+        <div class="system-status">
+            <div class="status-dot" id="status-dot"></div>
+            <span id="status-text">Connecting...</span>
+        </div>
+        <div class="auth-buttons" id="auth-buttons">
+            <button class="btn-auth btn-login" onclick="openModal('login')">LOGIN</button>
+            <button class="btn-auth btn-register" onclick="openModal('register')">REGISTER</button>
+        </div>
+        <div id="user-info" style="display:none;align-items:center;gap:12px;">
+            <span class="user-greeting" id="user-greeting"></span>
+            <button class="btn-logout" onclick="handleLogout()">LOGOUT</button>
+        </div>
+    </div>
+</header>

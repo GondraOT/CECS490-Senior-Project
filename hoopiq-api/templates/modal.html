@@ -1,0 +1,34 @@
+<!--
+    Basketball Shot Tracker App
+    Developed by Christopher Hong, Gondra Kelly
+    Team Name: HoopIQ
+    Team Members: Christopher Hong, Alfonso Mejia Vasquez, Gondra Kelly, Matthew Margulies, Carlos Orozco
+    Start Web Development Date: October 2025
+    Finished Web Development Date: June 2026 (Ideally)
+    templates/header.html
+-->
+
+<div class="modal-overlay" id="auth-modal">
+    <div class="modal">
+        <button class="modal-close" id="modal-close">✕</button>
+        <h2>HoopIQ</h2>
+        <p class="modal-sub">CECS490 SENIOR PROJECT — TEAM 2</p>
+        <div class="modal-tabs">
+            <button class="modal-tab active" id="tab-login" onclick="switchTab('login')">LOGIN</button>
+            <button class="modal-tab" id="tab-register" onclick="switchTab('register')">REGISTER</button>
+        </div>
+        <div id="form-login">
+            <div class="form-group"><label>Email</label><input type="email" id="login-email" placeholder="you@example.com"></div>
+            <div class="form-group"><label>Password</label><input type="password" id="login-password" placeholder="••••••••"></div>
+            <button class="btn-primary" onclick="handleLogin()">SIGN IN</button>
+        </div>
+        <div id="form-register" style="display:none">
+            <div class="form-group"><label>Full Name</label><input type="text" id="reg-name" placeholder="Your name"></div>
+            <div class="form-group"><label>Email</label><input type="email" id="reg-email" placeholder="you@example.com"></div>
+            <div class="form-group"><label>Password</label><input type="password" id="reg-password" placeholder="••••••••"></div>
+            <div class="form-group"><label>Confirm Password</label><input type="password" id="reg-confirm" placeholder="••••••••"></div>
+            <button class="btn-primary" onclick="handleRegister()">CREATE ACCOUNT</button>
+        </div>
+        <div class="modal-error" id="auth-error"></div>
+    </div>
+</div>

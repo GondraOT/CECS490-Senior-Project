@@ -1,0 +1,49 @@
+<!--
+    Basketball Shot Tracker App
+    Developed by Christopher Hong, Gondra Kelly
+    Team Name: HoopIQ
+    Team Members: Christopher Hong, Alfonso Mejia Vasquez, Gondra Kelly, Matthew Margulies, Carlos Orozco
+    Start Web Development Date: October 2025
+    Finished Web Development Date: June 2026 (Ideally)
+    templates/zone_accuracy.html
+-->
+    
+<div class="section-label">Shot Zone Accuracy</div>
+    <div class="zone-card">
+        <div class="zone-header">
+            <span class="zone-title">FG% BY COURT ZONE</span>
+            <span class="badge" id="best-zone-badge">Best zone: --</span>
+        </div>
+        <div class="zone-grid" id="zone-grid">
+            <div class="zone-item" id="zone-left-corner">
+                <div class="zone-name">Left Corner 3</div>
+                <div class="zone-pct zone-cold" id="z-pct-lc">--</div>
+                <div class="zone-shots" id="z-shots-lc">0 shots</div>
+                <div class="zone-bar-track"><div class="zone-bar-fill" id="z-bar-lc" style="width:0%;background:var(--green)"></div></div>
+            </div>
+            <div class="zone-item" id="zone-right-corner">
+                <div class="zone-name">Right Corner 3</div>
+                <div class="zone-pct zone-cold" id="z-pct-rc">--</div>
+                <div class="zone-shots" id="z-shots-rc">0 shots</div>
+                <div class="zone-bar-track"><div class="zone-bar-fill" id="z-bar-rc" style="width:0%;background:var(--green)"></div></div>
+            </div>
+            <div class="zone-item" id="zone-above-break">
+                <div class="zone-name">Above Break 3</div>
+                <div class="zone-pct zone-cold" id="z-pct-ab">--</div>
+                <div class="zone-shots" id="z-shots-ab">0 shots</div>
+                <div class="zone-bar-track"><div class="zone-bar-fill" id="z-bar-ab" style="width:0%;background:var(--green)"></div></div>
+            </div>
+            <div class="zone-item" id="zone-midrange">
+                <div class="zone-name">Mid-Range</div>
+                <div class="zone-pct zone-cold" id="z-pct-mr">--</div>
+                <div class="zone-shots" id="z-shots-mr">0 shots</div>
+                <div class="zone-bar-track"><div class="zone-bar-fill" id="z-bar-mr" style="width:0%;background:var(--green)"></div></div>
+            </div>
+            <div class="zone-item" id="zone-paint">
+                <div class="zone-name">Paint</div>
+                <div class="zone-pct zone-cold" id="z-pct-pt">--</div>
+                <div class="zone-shots" id="z-shots-pt">0 shots</div>
+                <div class="zone-bar-track"><div class="zone-bar-fill" id="z-bar-pt" style="width:0%;background:var(--green)"></div></div>
+            </div>
+        </div>
+    </div>

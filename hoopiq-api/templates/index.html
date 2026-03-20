@@ -1,3 +1,13 @@
+<!--
+    Basketball Shot Tracker App
+    Developed by Christopher Hong, Gondra Kelly
+    Team Name: HoopIQ
+    Team Members: Christopher Hong, Alfonso Mejia Vasquez, Gondra Kelly, Matthew Margulies, Carlos Orozco
+    Start Web Development Date: October 2025
+    Finished Web Development Date: June 2026 (Ideally)
+    templates/index.html
+-->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -170,268 +180,42 @@
 <body>
 
 <!-- Auth Modal -->
-<div class="modal-overlay" id="auth-modal">
-    <div class="modal">
-        <button class="modal-close" id="modal-close">✕</button>
-        <h2>HoopIQ</h2>
-        <p class="modal-sub">CECS490 SENIOR PROJECT — TEAM 2</p>
-        <div class="modal-tabs">
-            <button class="modal-tab active" id="tab-login" onclick="switchTab('login')">LOGIN</button>
-            <button class="modal-tab" id="tab-register" onclick="switchTab('register')">REGISTER</button>
-        </div>
-        <div id="form-login">
-            <div class="form-group"><label>Email</label><input type="email" id="login-email" placeholder="you@example.com"></div>
-            <div class="form-group"><label>Password</label><input type="password" id="login-password" placeholder="••••••••"></div>
-            <button class="btn-primary" onclick="handleLogin()">SIGN IN</button>
-        </div>
-        <div id="form-register" style="display:none">
-            <div class="form-group"><label>Full Name</label><input type="text" id="reg-name" placeholder="Your name"></div>
-            <div class="form-group"><label>Email</label><input type="email" id="reg-email" placeholder="you@example.com"></div>
-            <div class="form-group"><label>Password</label><input type="password" id="reg-password" placeholder="••••••••"></div>
-            <div class="form-group"><label>Confirm Password</label><input type="password" id="reg-confirm" placeholder="••••••••"></div>
-            <button class="btn-primary" onclick="handleRegister()">CREATE ACCOUNT</button>
-        </div>
-        <div class="modal-error" id="auth-error"></div>
-    </div>
-</div>
+{% include 'modal.html' %}
 
 <div class="container">
-
-    <header>
-        <div class="logo-block">
-            <h1>HoopIQ <span style="font-size:0.42em;font-weight:400;color:var(--green-dim);letter-spacing:0.05em;vertical-align:middle;">— TEAM 2</span></h1>
-            <div class="team-names">Christopher Hong &mdash; Gondra Kelly &mdash; Matthew Marguiles &mdash; Alfonso Mejia Vasquez &mdash; Carlos Orozco</div>
-            <div class="subtitle">CECS490 SENIOR PROJECT</div>
-        </div>
-        <div class="header-right">
-            <div class="system-status">
-                <div class="status-dot" id="status-dot"></div>
-                <span id="status-text">Connecting...</span>
-            </div>
-            <div class="auth-buttons" id="auth-buttons">
-                <button class="btn-auth btn-login" onclick="openModal('login')">LOGIN</button>
-                <button class="btn-auth btn-register" onclick="openModal('register')">REGISTER</button>
-            </div>
-            <div id="user-info" style="display:none;align-items:center;gap:12px;">
-                <span class="user-greeting" id="user-greeting"></span>
-                <button class="btn-logout" onclick="handleLogout()">LOGOUT</button>
-            </div>
-        </div>
-    </header>
+    <!-- Header -->
+    {% include 'header.html' %}
 
     <!-- Row 1: Primary Shot Stats -->
-    <div class="section-label">Shot Statistics</div>
-    <div class="row1">
-        <div class="stat-card"><div class="lbl">Attempts</div><div class="val" id="attempts">--</div></div>
-        <div class="stat-card"><div class="lbl">Makes</div><div class="val" id="makes">--</div></div>
-        <div class="stat-card"><div class="lbl">FG%</div><div class="val pct" id="fg-pct">--</div></div>
-        <div class="stat-card"><div class="lbl">2PT%</div><div class="val pct" id="two-pct">--</div></div>
-        <div class="stat-card"><div class="lbl">3PT%</div><div class="val pct" id="three-pct">--</div></div>
-        <div class="stat-card"><div class="lbl">Swishes</div><div class="val cyan" id="swishes">--</div></div>
-        <div class="stat-card"><div class="lbl">Rim Hits</div><div class="val" id="rim">--</div></div>
-        <div class="stat-card"><div class="lbl">Backboard</div><div class="val" id="backboard">--</div></div>
-        <div class="stat-card"><div class="lbl">Streak</div><div class="val" id="streak">--</div></div>
-    </div>
+    {% include 'primary_stats.html' %}
 
     <!-- Row 2: Shot Type Breakdown -->
-    <div class="section-label" style="margin-top:16px;">Shot Type Breakdown</div>
-    <div class="row2">
-        <div class="stat-card">
-            <div class="lbl">Swish Makes</div>
-            <div class="val cyan" id="swish-makes">--</div>
-        </div>
-        <div class="stat-card">
-            <div class="lbl">Backboard Makes</div>
-            <div class="val orange" id="backboard-makes">--</div>
-        </div>
-        <div class="stat-card">
-            <div class="lbl">Backboard Misses</div>
-            <div class="val" style="color:var(--red)" id="backboard-misses">--</div>
-        </div>
-        <div class="stat-card">
-            <div class="lbl">Last Shot</div>
-            <div class="val small" id="last-shot-type">—</div>
-        </div>
-    </div>
+    {% include 'shot_breakdown.html' %}
 
     <!-- Row 3: Advanced -->
-    <div class="section-label" style="margin-top:16px;">Advanced</div>
-    <div class="row3">
-        <div class="stat-card"><div class="lbl">Avg Arc</div><div class="val pct" id="avg-arc">--</div></div>
-        <div class="stat-card"><div class="lbl">Avg Entry Angle</div><div class="val pct" id="avg-entry">--</div></div>
-        <div class="stat-card"><div class="lbl">Players Detected</div><div class="val dim" id="players">--</div></div>
-    </div>
+    {% include 'advanced_stats.html' %}
 
     <!-- Bottom: Streams -->
-    <div class="section-label">Live Feeds &amp; Analytics</div>
-    <div class="bottom-grid">
-
-        <!-- Basketball Stream -->
-        <div class="stream-card">
-            <div class="stream-header">
-                <span class="cam-label">BASKETBALL TRACKER</span>
-                <span class="badge" id="b-points-badge">-- pts</span>
-            </div>
-            <div class="stream-body">
-                <video id="basketball-img" autoplay muted playsinline disableRemotePlayback></video>
-                <div class="stream-placeholder" id="basketball-placeholder">
-                    <svg class="court-svg" viewBox="0 0 120 80">
-                        <rect class="court-line" x="5" y="5" width="110" height="70" rx="2"/>
-                        <circle class="court-line" cx="60" cy="40" r="15"/>
-                        <line class="court-line" x1="60" y1="5" x2="60" y2="75"/>
-                        <path class="court-line" d="M 20 5 Q 5 40 20 75"/>
-                    </svg>
-                    <span class="court-label">Connecting to stream...</span>
-                </div>
-                <div class="stream-error" id="basketball-error">Stream unavailable — Pi may be offline</div>
-            </div>
-        </div>
-
-        <!-- Heatmap Stream -->
-        <div class="stream-card">
-            <div class="stream-header">
-                <span class="cam-label">PLAYER HEATMAP</span>
-                <span class="badge" id="h-session-badge">00:00:00</span>
-            </div>
-            <div class="stream-body">
-                <video id="heatmap-img" autoplay muted playsinline disableRemotePlayback></video>
-                <div class="stream-placeholder" id="heatmap-placeholder">
-                    <svg class="court-svg" viewBox="0 0 120 80">
-                        <rect class="court-line" x="5" y="5" width="110" height="70" rx="2"/>
-                        <circle class="court-line" cx="60" cy="40" r="15"/>
-                        <line class="court-line" x1="60" y1="5" x2="60" y2="75"/>
-                        <path class="court-line" d="M 20 5 Q 5 40 20 75"/>
-                    </svg>
-                    <span class="court-label">Connecting to stream...</span>
-                </div>
-                <div class="stream-error" id="heatmap-error">Stream unavailable — Pi may be offline</div>
-            </div>
-        </div>
-
-    </div>
+    {% include 'streams.html' %}
 
     <!-- Zone Accuracy -->
-    <div class="section-label">Shot Zone Accuracy</div>
-    <div class="zone-card">
-        <div class="zone-header">
-            <span class="zone-title">FG% BY COURT ZONE</span>
-            <span class="badge" id="best-zone-badge">Best zone: --</span>
-        </div>
-        <div class="zone-grid" id="zone-grid">
-            <div class="zone-item" id="zone-left-corner">
-                <div class="zone-name">Left Corner 3</div>
-                <div class="zone-pct zone-cold" id="z-pct-lc">--</div>
-                <div class="zone-shots" id="z-shots-lc">0 shots</div>
-                <div class="zone-bar-track"><div class="zone-bar-fill" id="z-bar-lc" style="width:0%;background:var(--green)"></div></div>
-            </div>
-            <div class="zone-item" id="zone-right-corner">
-                <div class="zone-name">Right Corner 3</div>
-                <div class="zone-pct zone-cold" id="z-pct-rc">--</div>
-                <div class="zone-shots" id="z-shots-rc">0 shots</div>
-                <div class="zone-bar-track"><div class="zone-bar-fill" id="z-bar-rc" style="width:0%;background:var(--green)"></div></div>
-            </div>
-            <div class="zone-item" id="zone-above-break">
-                <div class="zone-name">Above Break 3</div>
-                <div class="zone-pct zone-cold" id="z-pct-ab">--</div>
-                <div class="zone-shots" id="z-shots-ab">0 shots</div>
-                <div class="zone-bar-track"><div class="zone-bar-fill" id="z-bar-ab" style="width:0%;background:var(--green)"></div></div>
-            </div>
-            <div class="zone-item" id="zone-midrange">
-                <div class="zone-name">Mid-Range</div>
-                <div class="zone-pct zone-cold" id="z-pct-mr">--</div>
-                <div class="zone-shots" id="z-shots-mr">0 shots</div>
-                <div class="zone-bar-track"><div class="zone-bar-fill" id="z-bar-mr" style="width:0%;background:var(--green)"></div></div>
-            </div>
-            <div class="zone-item" id="zone-paint">
-                <div class="zone-name">Paint</div>
-                <div class="zone-pct zone-cold" id="z-pct-pt">--</div>
-                <div class="zone-shots" id="z-shots-pt">0 shots</div>
-                <div class="zone-bar-track"><div class="zone-bar-fill" id="z-bar-pt" style="width:0%;background:var(--green)"></div></div>
-            </div>
-        </div>
-    </div>
+    {% include 'zone_accuracy.html' %}
 
     <!-- Charts Row -->
-    <div class="charts-row">
-        <div class="chart-card">
-            <div class="chart-header">
-                <span class="chart-title">SHOT CHART</span>
-                <span class="badge" id="shot-count-badge">0 shots</span>
-            </div>
-            <div class="chart-body">
-                <canvas id="shot-chart-canvas" height="180"></canvas>
-            </div>
-        </div>
-        <div class="arc-card">
-            <div class="arc-header">
-                <span class="arc-title">ARC TREND GRAPH</span>
-                <span class="badge" id="arc-streak-badge">Streak: --</span>
-            </div>
-            <div class="arc-body">
-                <canvas id="arc-canvas" height="180"></canvas>
-            </div>
-        </div>
-    </div>
+    {% include 'charts_row.html' %}
 
-    <footer>
-        <span>HoopIQ &copy; 2026 &mdash; CECS490 Team 2</span>
-        <span id="last-update">Last update: --</span>
-    </footer>
+    <!-- Footer -->
+    {% include 'footer.html' %}
 </div>
+
+<!-- Load authentication logic -->
+<script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+
+<!-- Load stats logic -->
+<script src="{{ url_for('static', filename='js/stats.js') }}"></script>
 
 <script>
     const MEDIAMTX = 'https://hoopiq.tail6a4dd0.ts.net';
-    const CLOUD    = 'https://cecs490-senior-project.onrender.com';
-
-    // ── Auth ──────────────────────────────────────────────────────────
-    const USERS_KEY = 'hoopiq_users', SESSION_KEY = 'hoopiq_session';
-    const getUsers   = () => { try { return JSON.parse(localStorage.getItem(USERS_KEY)||'{}'); } catch { return {}; } };
-    const saveUsers  = u  => localStorage.setItem(USERS_KEY, JSON.stringify(u));
-    const getSession = () => { try { return JSON.parse(localStorage.getItem(SESSION_KEY)||'null'); } catch { return null; } };
-    const saveSession= s  => localStorage.setItem(SESSION_KEY, JSON.stringify(s));
-    const clearSession=()  => localStorage.removeItem(SESSION_KEY);
-
-    function openModal(tab) { document.getElementById('auth-modal').classList.add('active'); switchTab(tab||'login'); document.getElementById('auth-error').textContent=''; }
-    function closeModal()   { document.getElementById('auth-modal').classList.remove('active'); }
-    document.getElementById('modal-close').onclick = closeModal;
-    document.getElementById('auth-modal').addEventListener('click', e => { if(e.target===document.getElementById('auth-modal')) closeModal(); });
-
-    function switchTab(tab) {
-        document.getElementById('form-login').style.display    = tab==='login'    ? 'block':'none';
-        document.getElementById('form-register').style.display = tab==='register' ? 'block':'none';
-        document.getElementById('tab-login').classList.toggle('active',    tab==='login');
-        document.getElementById('tab-register').classList.toggle('active', tab==='register');
-        document.getElementById('auth-error').textContent = '';
-    }
-
-    function handleLogin() {
-        const email=document.getElementById('login-email').value.trim(), pass=document.getElementById('login-password').value;
-        const users=getUsers(), err=document.getElementById('auth-error');
-        if(!email||!pass){err.textContent='Please fill in all fields.';return;}
-        if(!users[email]){err.textContent='No account found with that email.';return;}
-        if(users[email].password!==btoa(pass)){err.textContent='Incorrect password.';return;}
-        saveSession({email,name:users[email].name}); updateAuthUI(); closeModal();
-    }
-
-    function handleRegister() {
-        const name=document.getElementById('reg-name').value.trim(), email=document.getElementById('reg-email').value.trim();
-        const pass=document.getElementById('reg-password').value, confirm=document.getElementById('reg-confirm').value;
-        const users=getUsers(), err=document.getElementById('auth-error');
-        if(!name||!email||!pass||!confirm){err.textContent='Please fill in all fields.';return;}
-        if(pass!==confirm){err.textContent='Passwords do not match.';return;}
-        if(pass.length<6){err.textContent='Password must be at least 6 characters.';return;}
-        if(users[email]){err.textContent='An account with that email already exists.';return;}
-        users[email]={name,password:btoa(pass)}; saveUsers(users); saveSession({email,name}); updateAuthUI(); closeModal();
-    }
-
-    function handleLogout() { clearSession(); updateAuthUI(); }
-
-    function updateAuthUI() {
-        const s=getSession();
-        document.getElementById('auth-buttons').style.display = s ? 'none':'flex';
-        document.getElementById('user-info').style.display    = s ? 'flex':'none';
-        if(s) document.getElementById('user-greeting').textContent = 'Hi, '+s.name.split(' ')[0];
-    }
 
     // ── WebRTC ────────────────────────────────────────────────────────
     async function startWebRTC(videoId, placeholderId, errorId, streamPath) {
@@ -659,69 +443,6 @@
         ctx.fillStyle = 'rgba(0,255,136,0.4)'; ctx.font = '9px IBM Plex Mono'; ctx.textAlign = 'left';
         ctx.fillText(maxV.toFixed(0)+'°', 2, 14); ctx.fillText(minV.toFixed(0)+'°', 2, H-4);
     }
-
-    // ── Stats ─────────────────────────────────────────────────────────
-    function fmt(v, suffix='') { return (v === null || v === undefined) ? '--' : v + suffix; }
-
-    function getLastShotClass(type) {
-        if (!type || type === '—') return '';
-        if (type === 'Swish') return 'swish';
-        if (type.includes('Make') || type === 'Swish') return 'make';
-        return 'miss';
-    }
-
-    async function updateStats() {
-        try {
-            const r = await fetch(`${CLOUD}/stats`, {cache:'no-store'});
-            if(!r.ok) throw new Error();
-            const d = await r.json();
-            const online = d.system?.online ?? false;
-            document.getElementById('status-dot').className = 'status-dot' + (online ? ' online' : '');
-            document.getElementById('status-text').textContent = online ? 'Online' : 'Offline';
-
-            const b = d.basketball || {}, s = d.sensors || {}, h = d.heatmap || {};
-
-            setText('attempts',   fmt(b.attempts));
-            setText('makes',      fmt(b.makes));
-            setText('fg-pct',     b.fg_percent !== null && b.fg_percent !== undefined ? b.fg_percent+'%' : '--');
-            setText('two-pct',    b.two_pt_percent  !== null && b.two_pt_percent  !== undefined ? b.two_pt_percent+'%'  : '--');
-            setText('three-pct',  b.three_pt_percent!== null && b.three_pt_percent!== undefined ? b.three_pt_percent+'%' : '--');
-            setText('swishes',    fmt(b.swishes));
-            setText('rim',        fmt(s.rim_hits));
-            setText('backboard',  fmt(s.backboard_hits));
-            setText('streak',     fmt(b.streak));
-
-            // Shot type breakdown
-            setText('swish-makes',      fmt(b.swishes));
-            setText('backboard-makes',  fmt(s.backboard_makes));
-            setText('backboard-misses', fmt(s.backboard_misses));
-
-            // Last shot type with color
-            const lastShot = b.last_shot_type || '—';
-            const lastShotEl = document.getElementById('last-shot-type');
-            if (lastShotEl) {
-                lastShotEl.textContent = lastShot;
-                lastShotEl.className = 'val small ' + getLastShotClass(lastShot);
-            }
-
-            setText('players', fmt(h.current_players));
-            setText('avg-arc',   b.avg_arc   !== null && b.avg_arc   !== undefined ? b.avg_arc+'°'   : '--');
-            setText('avg-entry', b.avg_entry_angle !== null && b.avg_entry_angle !== undefined ? b.avg_entry_angle+'°' : '--');
-
-            document.getElementById('b-points-badge').textContent = fmt(b.makes) + ' pts';
-            document.getElementById('arc-streak-badge').textContent = 'Streak: ' + fmt(b.streak);
-
-            drawShotChart(b.shot_chart || []);
-            updateZones(b.shot_chart || []);
-            updateArcTrend(b.avg_arc, b.avg_entry_angle);
-
-        } catch {
-            document.getElementById('status-dot').className = 'status-dot';
-            document.getElementById('status-text').textContent = 'Offline';
-        }
-    }
-
-    function setText(id, val) { const el=document.getElementById(id); if(el) el.textContent=val; }
 
     // ── Clock ─────────────────────────────────────────────────────────
     function startClock() {
