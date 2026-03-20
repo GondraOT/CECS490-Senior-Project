@@ -25,13 +25,13 @@ const HEATMAP_DETECT_EVERY_N_FRAMES: u64 = 3;
 const JPEG_QUALITY_HEATMAP: i32 = 70;
 const BG_HISTORY_FRAMES: i32 = 500;
 const BG_VARIANCE_THRESHOLD: f64 = 16.0;
-const MIN_CONTOUR_AREA: f64 = 150.0;
-const MAX_CONTOUR_AREA: f64 = 8000.0;
+const MIN_CONTOUR_AREA: f64 = 50.0;
+const MAX_CONTOUR_AREA: f64 = 15000.0;
 const MIN_ASPECT_RATIO: f32 = 0.8;
 const MAX_ASPECT_RATIO: f32 = 3.5;
 const HEATMAP_GRID_SIZE: i32 = 30;
-const HEATMAP_CIRCLE_RADIUS: i32 = 30;
-const HEATMAP_OPACITY: f64 = 0.35;
+const HEATMAP_CIRCLE_RADIUS: i32 = 45;
+const HEATMAP_OPACITY: f64 = 0.5;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct PlayerDetection {
@@ -49,6 +49,7 @@ struct ShotEntry {
     y: f32,
     made: bool,
     zone: String,
+    shot_type: String,
     timestamp: u64,
 }
 
@@ -72,8 +73,12 @@ struct GameState {
     make_count: u64,
     backboard_count: u32,
     rim_count: u32,
+    swish_count: u32,
+    backboard_make_count: u32,
+    backboard_miss_count: u32,
     total_players_detected: u64,
     shot_chart: Vec<ShotEntry>,
+    last_shot_type: String,
 }
 
 impl GameState {
@@ -86,8 +91,12 @@ impl GameState {
             make_count: 0,
             backboard_count: 0,
             rim_count: 0,
+            swish_count: 0,
+            backboard_make_count: 0,
+            backboard_miss_count: 0,
             total_players_detected: 0,
             shot_chart: Vec::new(),
+            last_shot_type: "—".to_string(),
         }
     }
 
@@ -95,16 +104,24 @@ impl GameState {
         &mut self,
         players: &[PlayerDetection],
         made: bool,
+        shot_type: &str,
         frame_width: i32,
         frame_height: i32,
     ) {
         if let Some(player) = players.first() {
             let x = (player.x as f32 / frame_width as f32 * 100.0).clamp(0.0, 100.0);
             let y = (player.y as f32 / frame_height as f32 * 100.0).clamp(0.0, 100.0);
-            let zone = if y < 50.0 || x < 10.0 || x > 90.0 {
-                "3pt"
+            // 5-zone court classification (x/y are 0-100% of frame)
+            let zone = if x < 20.0 && y > 40.0 {
+                "Left Corner 3"
+            } else if x > 80.0 && y > 40.0 {
+                "Right Corner 3"
+            } else if y < 30.0 || x < 15.0 || x > 85.0 {
+                "Above Break 3"
+            } else if y > 60.0 && x > 30.0 && x < 70.0 {
+                "Paint"
             } else {
-                "2pt"
+                "Mid-Range"
             }
             .to_string();
             self.shot_chart.push(ShotEntry {
@@ -112,6 +129,7 @@ impl GameState {
                 y,
                 made,
                 zone,
+                shot_type: shot_type.to_string(),
                 timestamp: SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .unwrap()
@@ -121,6 +139,7 @@ impl GameState {
                 self.shot_chart.remove(0);
             }
         }
+        self.last_shot_type = shot_type.to_string();
     }
 
     fn update_heatmap(&mut self, players: &[PlayerDetection]) {
@@ -133,6 +152,19 @@ impl GameState {
         }
         if self.heatmap_data.len() > 1000 {
             self.heatmap_data.retain(|_, &mut v| v >= 5);
+        }
+    }
+
+    fn attempts(&self) -> u64 {
+        self.make_count + self.backboard_miss_count as u64 + self.rim_count as u64
+    }
+
+    fn fg_percent(&self) -> Option<f32> {
+        let a = self.attempts();
+        if a == 0 {
+            None
+        } else {
+            Some(self.make_count as f32 / a as f32 * 100.0)
         }
     }
 }
@@ -257,12 +289,7 @@ fn draw_heatmap_overlay(
     Ok(())
 }
 
-fn draw_player_overlay(
-    frame: &mut Mat,
-    players: &[PlayerDetection],
-    fps: f32,
-    total_detected: u64,
-) -> Result<(), opencv::Error> {
+fn draw_player_overlay(frame: &mut Mat, players: &[PlayerDetection]) -> Result<(), opencv::Error> {
     for player in players {
         imgproc::rectangle(
             frame,
@@ -280,12 +307,7 @@ fn draw_player_overlay(
     }
 
     let cyan = Scalar::new(255.0, 255.0, 0.0, 255.0);
-    let texts: &[&str] = &[
-        "PLAYER HEATMAP",
-        &format!("FPS: {:.1}", fps),
-        &format!("Players: {}", players.len()),
-        &format!("Total: {}", total_detected),
-    ];
+    let texts: &[&str] = &["PLAYER HEATMAP", &format!("Players: {}", players.len())];
     for (i, text) in texts.iter().enumerate() {
         imgproc::put_text(
             frame,
@@ -324,7 +346,7 @@ fn process_heatmap_camera(
             "-f",
             "mjpeg",
             "-framerate",
-            "30",
+            "60",
             "-i",
             "pipe:0",
             "-c:v",
@@ -342,7 +364,7 @@ fn process_heatmap_camera(
             "-bufsize",
             "2M",
             "-g",
-            "30",
+            "60",
             "-f",
             "rtsp",
             "-rtsp_transport",
@@ -366,7 +388,7 @@ fn process_heatmap_camera(
             "-f",
             "mjpeg",
             "-framerate",
-            "30",
+            "60",
             "-i",
             "pipe:0",
             "-vf",
@@ -413,7 +435,7 @@ fn process_heatmap_camera(
             state.lock().unwrap().current_players.clone()
         };
 
-        let (heatmap_snapshot, fps, total_detected) = {
+        let heatmap_snapshot = {
             let mut s = state.lock().unwrap();
             s.heatmap_frame_count = local_count;
             s.total_players_detected += players.len() as u64;
@@ -431,18 +453,14 @@ fn process_heatmap_camera(
                     .duration_since(*frame_times.front().unwrap());
                 s.heatmap_fps = (frame_times.len() - 1) as f32 / dur.as_secs_f32();
             }
-            (
-                s.heatmap_data.clone(),
-                s.heatmap_fps,
-                s.total_players_detected,
-            )
+            s.heatmap_data.clone()
         };
 
         // ── Draw overlays ─────────────────────────────────────────────
         if let Err(e) = draw_heatmap_overlay(&mut frame, &heatmap_snapshot) {
             eprintln!("Heatmap overlay error: {}", e);
         }
-        if let Err(e) = draw_player_overlay(&mut frame, &players, fps, total_detected) {
+        if let Err(e) = draw_player_overlay(&mut frame, &players) {
             eprintln!("Player overlay error: {}", e);
         }
 
@@ -452,18 +470,14 @@ fn process_heatmap_camera(
             Vector::<i32>::from_slice(&[imgcodecs::IMWRITE_JPEG_QUALITY, JPEG_QUALITY_HEATMAP]);
         if imgcodecs::imencode(".jpg", &frame, &mut buf, &params).is_ok() {
             let jpeg = buf.to_vec();
-
             if let Ok(mut f) = frames.heatmap.write() {
                 *f = jpeg.clone();
             }
-
             if !push_frame_to_rtsp(&jpeg, &mut ffmpeg_heatmap_stdin) {
                 eprintln!("Heatmap FFmpeg pipe broken, restarting...");
                 break;
             }
         }
-
-        thread::sleep(Duration::from_millis(16));
     }
 
     Ok(())
@@ -475,8 +489,11 @@ fn listen_to_esp32(state: Arc<Mutex<GameState>>) {
         loop {
             for port in &ports {
                 println!("Attempting to connect to ESP32 on {}", port);
-                if let Ok(file) = std::fs::OpenOptions::new().read(true).open(port) {
+                if let Ok(mut file) = std::fs::OpenOptions::new().read(true).write(true).open(port) {
                     println!("Connected to ESP32 on {}", port);
+                    thread::sleep(Duration::from_millis(2000));
+                    let _ = file.write_all(b"ENABLE\n");
+                    println!("Sent ENABLE to ESP32");
                     for line in BufReader::new(file).lines() {
                         if let Ok(data) = line {
                             let data = data.trim().to_string();
@@ -486,16 +503,27 @@ fn listen_to_esp32(state: Arc<Mutex<GameState>>) {
                             let mut s = state.lock().unwrap();
                             let players = s.current_players.clone();
                             if data.starts_with("MAKE:") {
+                                // IR beam broken with prior piezo = backboard make
                                 s.make_count += 1;
-                                s.record_shot(&players, true, 1280, 720);
-                                println!("Basketball make: total {}", s.make_count);
+                                s.backboard_make_count += 1;
+                                s.record_shot(&players, true, "Backboard Make", 1280, 720);
+                                println!("Basketball make (backboard): total {}", s.make_count);
+                            } else if data.starts_with("SWISH:") {
+                                // IR beam broken with NO prior piezo = swish
+                                s.make_count += 1;
+                                s.swish_count += 1;
+                                s.record_shot(&players, true, "Swish", 1280, 720);
+                                println!("Swish! total makes: {}", s.make_count);
                             } else if data.starts_with("BACK:") {
+                                // Piezo hit, no IR = backboard miss
                                 s.backboard_count += 1;
-                                s.record_shot(&players, false, 1280, 720);
-                                println!("Backboard hit: total {}", s.backboard_count);
+                                s.backboard_miss_count += 1;
+                                s.record_shot(&players, false, "Backboard Miss", 1280, 720);
+                                println!("Backboard miss: total {}", s.backboard_count);
                             } else if data.starts_with("RIM:") {
+                                // Rim hit only
                                 s.rim_count += 1;
-                                s.record_shot(&players, false, 1280, 720);
+                                s.record_shot(&players, false, "Rim Hit", 1280, 720);
                                 println!("Rim hit: total {}", s.rim_count);
                             }
                         }
@@ -518,39 +546,34 @@ fn send_to_cloud_api(state: Arc<Mutex<GameState>>, frames: Arc<FrameStore>, api_
 
             let h_frame = frames.heatmap.read().unwrap().clone();
 
-            let (makes, attempts, bb, rim, hfps, cur_players, total, hpoints, shot_chart, ts) = {
+            let payload = {
                 let s = state.lock().unwrap();
-                let attempts = s.make_count + s.backboard_count as u64 + s.rim_count as u64;
-                (
-                    s.make_count,
-                    attempts,
-                    s.backboard_count,
-                    s.rim_count,
-                    s.heatmap_fps,
-                    s.current_players.len() as u64,
-                    s.total_players_detected,
-                    s.heatmap_data.len() as u64,
-                    s.shot_chart.clone(),
-                    get_timestamp(),
-                )
+                let fg = s
+                    .fg_percent()
+                    .map(|v| format!("{:.1}", v))
+                    .unwrap_or_else(|| "0.0".to_string());
+                json!({
+                    "basketball_fps": 0,
+                    "makes": s.make_count,
+                    "attempts": s.attempts(),
+                    "swishes": s.swish_count,
+                    "backboard_makes": s.backboard_make_count,
+                    "backboard_misses": s.backboard_miss_count,
+                    "backboard_hits": s.backboard_count,
+                    "rim_hits": s.rim_count,
+                    "fg_percent": fg,
+                    "last_shot_type": s.last_shot_type,
+                    "trajectories": 0,
+                    "heatmap_fps": s.heatmap_fps,
+                    "current_players": s.current_players.len() as u64,
+                    "total_players_detected": s.total_players_detected,
+                    "heatmap_points": s.heatmap_data.len() as u64,
+                    "shot_chart": s.shot_chart,
+                    "basketball_frame": "",
+                    "heatmap_frame": general_purpose::STANDARD.encode(&h_frame),
+                    "timestamp": get_timestamp()
+                })
             };
-
-            let payload = json!({
-                "basketball_fps": 0,
-                "makes": makes,
-                "attempts": attempts,
-                "trajectories": 0,
-                "backboard_hits": bb,
-                "rim_hits": rim,
-                "heatmap_fps": hfps,
-                "current_players": cur_players,
-                "total_players_detected": total,
-                "heatmap_points": hpoints,
-                "shot_chart": shot_chart,
-                "basketball_frame": "",
-                "heatmap_frame": general_purpose::STANDARD.encode(&h_frame),
-                "timestamp": ts
-            });
 
             match client
                 .post(format!("{}/update", api_url))
@@ -575,27 +598,27 @@ fn main() -> Result<(), opencv::Error> {
     let frame_store = FrameStore::new();
 
     println!("Opening C922x camera at 720p@60fps...");
-    let mut cam_brio = None;
+    let mut cam = None;
     for attempt in 1..=5 {
-        match videoio::VideoCapture::from_file("/dev/video_brio", videoio::CAP_V4L2) {
-            Ok(mut cam) if videoio::VideoCapture::is_opened(&cam).unwrap_or(false) => {
-                cam.set(
+        match videoio::VideoCapture::new(0, videoio::CAP_V4L2) {
+            Ok(mut c) if videoio::VideoCapture::is_opened(&c).unwrap_or(false) => {
+                c.set(
                     videoio::CAP_PROP_FOURCC,
                     videoio::VideoWriter::fourcc('M', 'J', 'P', 'G').unwrap() as f64,
                 )
                 .ok();
-                cam.set(videoio::CAP_PROP_FRAME_WIDTH, 1280.0).ok();
-                cam.set(videoio::CAP_PROP_FRAME_HEIGHT, 720.0).ok();
-                cam.set(videoio::CAP_PROP_FPS, 30.0).ok();
-                cam.set(videoio::CAP_PROP_BUFFERSIZE, 1.0).ok();
-                let w = cam.get(videoio::CAP_PROP_FRAME_WIDTH).unwrap_or(0.0);
-                let h = cam.get(videoio::CAP_PROP_FRAME_HEIGHT).unwrap_or(0.0);
-                let fps = cam.get(videoio::CAP_PROP_FPS).unwrap_or(0.0);
+                c.set(videoio::CAP_PROP_FRAME_WIDTH, 1280.0).ok();
+                c.set(videoio::CAP_PROP_FRAME_HEIGHT, 720.0).ok();
+                c.set(videoio::CAP_PROP_FPS, 60.0).ok();
+                c.set(videoio::CAP_PROP_BUFFERSIZE, 1.0).ok();
+                let w = c.get(videoio::CAP_PROP_FRAME_WIDTH).unwrap_or(0.0);
+                let h = c.get(videoio::CAP_PROP_FRAME_HEIGHT).unwrap_or(0.0);
+                let fps = c.get(videoio::CAP_PROP_FPS).unwrap_or(0.0);
                 println!(
                     "C922x negotiated: {}x{} @ {}fps on attempt {}",
                     w, h, fps, attempt
                 );
-                cam_brio = Some(cam);
+                cam = Some(c);
                 break;
             }
             Ok(_) | Err(_) => {
@@ -607,7 +630,7 @@ fn main() -> Result<(), opencv::Error> {
         }
     }
 
-    let cam_brio = match cam_brio {
+    let cam = match cam {
         Some(c) => c,
         None => {
             eprintln!("Could not open C922x after 5 attempts");
@@ -628,7 +651,7 @@ fn main() -> Result<(), opencv::Error> {
     let state_h = Arc::clone(&game_state);
     let frames_h = Arc::clone(&frame_store);
     thread::spawn(move || {
-        if let Err(e) = process_heatmap_camera(cam_brio, state_h, frames_h) {
+        if let Err(e) = process_heatmap_camera(cam, state_h, frames_h) {
             eprintln!("C922x camera error: {}", e);
         }
     });
@@ -638,6 +661,8 @@ fn main() -> Result<(), opencv::Error> {
         thread::sleep(Duration::from_secs(1));
     }
 }
+
+
 
 
 

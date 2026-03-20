@@ -81,13 +81,11 @@
         .section-label { font-size:0.65em; color:var(--text-dim); letter-spacing:0.12em; text-transform:uppercase; margin-bottom:10px; padding-left:2px; }
 
         /* ── Row 1: Primary Shot Stats (9 cards) ── */
-        .row1 { display:grid; grid-template-columns:repeat(9,1fr); gap:10px; margin-bottom:10px; }
+        .row1 { display:grid; grid-template-columns:repeat(8,1fr); gap:10px; margin-bottom:10px; }
 
         /* ── Row 2: Shot Type breakdown ── */
-        .row2 { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:10px; }
+       .row2 { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:10px; }
 
-        /* ── Row 3: Advanced ── */
-        .row3 { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px; }
 
         .stat-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:8px; padding:14px 12px; text-align:center; transition:border-color 0.2s, background 0.2s; }
         .stat-card:hover { border-color:var(--green-dim); background:var(--bg-card2); }
@@ -132,7 +130,7 @@
         /* ── Charts Row ── */
         .charts-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
 
-        /* ── Arc Trend ── */
+        /* ── Makes vs Misses ── */
         .arc-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:10px; overflow:hidden; }
         .arc-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--green-border); }
         .arc-title { font-size:0.75em; color:var(--green); letter-spacing:0.06em; }
@@ -167,7 +165,7 @@
         footer { border-top:1px solid var(--green-border); padding-top:16px; display:flex; justify-content:space-between; align-items:center; font-size:0.68em; color:var(--text-dim); flex-wrap:wrap; gap:8px; }
 
         /* ── Responsive ── */
-        @media (max-width:1200px) { .row1 { grid-template-columns:repeat(5,1fr); } .row2 { grid-template-columns:repeat(4,1fr); } }
+        @media (max-width:1200px) { .row1 { grid-template-columns:repeat(5,1fr); } .row2 { grid-template-columns:repeat(3,1fr); } }
         @media (max-width:900px) { .row1 { grid-template-columns:repeat(3,1fr); } .row2 { grid-template-columns:repeat(2,1fr); } .row3 { grid-template-columns:repeat(3,1fr); } .bottom-grid { grid-template-columns:1fr 1fr; } }
         @media (max-width:700px) { .row1 { grid-template-columns:repeat(3,1fr); } .row2 { grid-template-columns:repeat(2,1fr); } .bottom-grid { grid-template-columns:1fr; } .charts-row { grid-template-columns:1fr; } }
         @media (max-width:480px) { .row1 { grid-template-columns:repeat(2,1fr); } .row2 { grid-template-columns:repeat(2,1fr); } .row3 { grid-template-columns:repeat(2,1fr); } }
@@ -220,7 +218,21 @@
     // ── WebRTC ────────────────────────────────────────────────────────
     async function startWebRTC(videoId, placeholderId, errorId, streamPath) {
         const video=document.getElementById(videoId), placeholder=document.getElementById(placeholderId), error=document.getElementById(errorId);
-        const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+        const pc = new RTCPeerConnection({
+    iceServers:[
+        {urls:'stun:stun.l.google.com:19302'},
+        {
+            urls:'turn:openrelay.metered.ca:80',
+            username:'openrelayproject',
+            credential:'openrelayproject'
+        },
+        {
+            urls:'turn:openrelay.metered.ca:443',
+            username:'openrelayproject',
+            credential:'openrelayproject'
+        }
+    ]
+});
         pc.addTransceiver('video',{direction:'recvonly'});
         pc.ontrack = evt => {
             video.srcObject=evt.streams[0]; video.play().catch(()=>{});
@@ -409,40 +421,153 @@
         }
     }
 
-    // ── Arc Trend Canvas ──────────────────────────────────────────────
-    let arcHistory = [];
-    function updateArcTrend(avgArc, avgEntry) {
-        if (avgArc !== null && avgArc !== undefined) {
-            arcHistory.push({ arc: avgArc, entry: avgEntry });
-            if (arcHistory.length > 50) arcHistory.shift();
-        }
+
+
+    // ── Makes vs Misses Bar Chart ────────────────────────────────────
+    function drawMakesVsMisses(shotData) {
         const canvas = document.getElementById('arc-canvas');
         const ctx = canvas.getContext('2d');
-        canvas.width = canvas.offsetWidth * window.devicePixelRatio || 800;
-        canvas.height = 120 * window.devicePixelRatio || 120;
-        ctx.scale(window.devicePixelRatio||1, window.devicePixelRatio||1);
-        const W = canvas.offsetWidth || 800, H = 120;
-        ctx.clearRect(0,0,W,H);
-        ctx.strokeStyle = 'rgba(0,255,136,0.07)'; ctx.lineWidth = 1;
-        for (let i=0; i<=4; i++) { const y = 10 + (i/4)*(H-20); ctx.beginPath(); ctx.moveTo(10,y); ctx.lineTo(W-10,y); ctx.stroke(); }
-        if (arcHistory.length === 0) {
-            ctx.fillStyle = 'rgba(90,122,99,0.6)'; ctx.font = '10px IBM Plex Mono'; ctx.textAlign = 'center';
-            ctx.fillText('No arc data yet — waiting for shot data', W/2, H/2); return;
+        const dpr = window.devicePixelRatio || 1;
+        const W = canvas.offsetWidth || 400, H = 180;
+        canvas.width = W * dpr; canvas.height = H * dpr;
+        canvas.style.height = H + 'px';
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, W, H);
+
+        const makes  = shotData.filter(s => s.made).length;
+        const misses = shotData.filter(s => !s.made).length;
+        const total  = makes + misses;
+
+        if (total === 0) {
+            ctx.fillStyle = 'rgba(90,122,99,0.6)';
+            ctx.font = '10px IBM Plex Mono'; ctx.textAlign = 'center';
+            ctx.fillText('No shots yet', W/2, H/2); return;
         }
-        const vals = arcHistory.map(d=>d.arc), minV = Math.min(...vals)-5, maxV = Math.max(...vals)+5;
-        const toY = v => H-10 - ((v-minV)/(maxV-minV))*(H-20);
-        const toX = i => 10 + (i/(Math.max(arcHistory.length-1,1)))*(W-20);
-        ctx.beginPath(); ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 2;
-        arcHistory.forEach((d,i)=>{ i===0 ? ctx.moveTo(toX(i),toY(d.arc)) : ctx.lineTo(toX(i),toY(d.arc)); });
-        ctx.stroke();
+
+        const pad = 40, barW = (W - pad*2 - 20) / 2, maxH = H - 60;
+        const makeH  = (makes  / Math.max(makes, misses)) * maxH;
+        const missH  = (misses / Math.max(makes, misses)) * maxH;
+        const makeX  = pad, missX = pad + barW + 20;
+        const baseY  = H - 30;
+
+        // Grid lines
+        ctx.strokeStyle = 'rgba(0,255,136,0.08)'; ctx.lineWidth = 1;
+        for (let i = 0; i <= 4; i++) {
+            const y = baseY - (i/4) * maxH;
+            ctx.beginPath(); ctx.moveTo(pad - 5, y); ctx.lineTo(W - pad + 5, y); ctx.stroke();
+            const val = Math.round((i/4) * Math.max(makes, misses));
+            ctx.fillStyle = 'rgba(0,255,136,0.35)'; ctx.font = '9px IBM Plex Mono';
+            ctx.textAlign = 'right'; ctx.fillText(val, pad - 8, y + 3);
+        }
+
+        // Makes bar
+        const makeGrad = ctx.createLinearGradient(0, baseY - makeH, 0, baseY);
+        makeGrad.addColorStop(0, 'rgba(0,255,136,0.9)');
+        makeGrad.addColorStop(1, 'rgba(0,255,136,0.2)');
+        ctx.fillStyle = makeGrad;
         ctx.beginPath();
-        arcHistory.forEach((d,i)=>{ i===0 ? ctx.moveTo(toX(i),toY(d.arc)) : ctx.lineTo(toX(i),toY(d.arc)); });
-        ctx.lineTo(toX(arcHistory.length-1), H-10); ctx.lineTo(toX(0), H-10); ctx.closePath();
-        ctx.fillStyle = 'rgba(0,255,136,0.06)'; ctx.fill();
-        arcHistory.forEach((d,i)=>{ ctx.beginPath(); ctx.arc(toX(i), toY(d.arc), 3, 0, Math.PI*2); ctx.fillStyle = '#00ff88'; ctx.fill(); });
-        ctx.fillStyle = 'rgba(0,255,136,0.4)'; ctx.font = '9px IBM Plex Mono'; ctx.textAlign = 'left';
-        ctx.fillText(maxV.toFixed(0)+'°', 2, 14); ctx.fillText(minV.toFixed(0)+'°', 2, H-4);
+        ctx.roundRect(makeX, baseY - makeH, barW, makeH, [4, 4, 0, 0]);
+        ctx.fill();
+
+        // Misses bar
+        const missGrad = ctx.createLinearGradient(0, baseY - missH, 0, baseY);
+        missGrad.addColorStop(0, 'rgba(255,68,102,0.9)');
+        missGrad.addColorStop(1, 'rgba(255,68,102,0.2)');
+        ctx.fillStyle = missGrad;
+        ctx.beginPath();
+        ctx.roundRect(missX, baseY - missH, barW, missH, [4, 4, 0, 0]);
+        ctx.fill();
+
+        // Labels
+        ctx.textAlign = 'center'; ctx.font = '600 11px IBM Plex Mono';
+        ctx.fillStyle = '#00ff88';
+        ctx.fillText('MAKES', makeX + barW/2, baseY + 14);
+        ctx.fillText(makes, makeX + barW/2, baseY - makeH - 6);
+        ctx.fillStyle = '#ff4466';
+        ctx.fillText('MISSES', missX + barW/2, baseY + 14);
+        ctx.fillText(misses, missX + barW/2, baseY - missH - 6);
+
+        // FG% center label
+        const fgPct = (makes / total * 100).toFixed(1);
+        ctx.fillStyle = 'rgba(0,255,136,0.5)'; ctx.font = '10px IBM Plex Mono';
+        ctx.fillText(fgPct + '% FG', W/2, baseY + 14);
     }
+
+    // ── Stats ─────────────────────────────────────────────────────────
+    function fmt(v, suffix='') { return (v === null || v === undefined) ? '--' : v + suffix; }
+
+    function getLastShotClass(type) {
+        if (!type || type === '—') return '';
+        if (type === 'Swish') return 'swish';
+        if (type.includes('Make') || type === 'Swish') return 'make';
+        return 'miss';
+    }
+
+    async function updateStats() {
+        try {
+            const r = await fetch(`${CLOUD}/stats`, {cache:'no-store'});
+            if(!r.ok) throw new Error();
+            const d = await r.json();
+            const online = d.system?.online ?? false;
+            document.getElementById('status-dot').className = 'status-dot' + (online ? ' online' : '');
+            document.getElementById('status-text').textContent = online ? 'Online' : 'Offline';
+
+            const b = d.basketball || {}, s = d.sensors || {}, h = d.heatmap || {};
+
+            setText('attempts',   fmt(b.attempts));
+            setText('makes',      fmt(b.makes));
+            setText('fg-pct',     b.fg_percent !== null && b.fg_percent !== undefined ? b.fg_percent+'%' : '--');
+            setText('two-pct',    b.two_pt_percent  !== null && b.two_pt_percent  !== undefined ? b.two_pt_percent+'%'  : '--');
+            setText('three-pct',  b.three_pt_percent!== null && b.three_pt_percent!== undefined ? b.three_pt_percent+'%' : '--');
+            setText('rim',        fmt(s.rim_hits));
+            setText('backboard',  fmt(s.backboard_hits));
+            const streakVal = b.streak ?? 0;
+            const streakEl = document.getElementById('streak');
+            if (streakEl) {
+                streakEl.textContent = streakVal > 0 ? '+'+streakVal : streakVal === 0 ? '0' : streakVal;
+                streakEl.style.color = streakVal > 0 ? 'var(--green)' : streakVal < 0 ? 'var(--red)' : 'var(--text-dim)';
+            }
+
+            // Shot type breakdown
+            const shotChart = b.shot_chart || [];
+            const backboardMakes  = shotChart.filter(s => s.shot_type === 'Backboard Make').length;
+            const backboardMisses = shotChart.filter(s => s.shot_type === 'Backboard Miss').length;
+            const swishCount      = shotChart.filter(s => s.shot_type === 'Swish').length;
+            setText('backboard-makes',  backboardMakes);
+            setText('backboard-misses', backboardMisses);
+            setText('swishes', swishCount);
+
+            // Last shot type with color
+            const lastShot = b.last_shot_type || '—';
+            const lastShotEl = document.getElementById('last-shot-type');
+            if (lastShotEl) {
+                lastShotEl.textContent = lastShot;
+                lastShotEl.className = 'val small ' + getLastShotClass(lastShot);
+            }
+
+
+            document.getElementById('b-shots-badge').textContent = fmt(b.attempts) + ' shots';
+            const playersEl = document.getElementById('h-players-badge');
+            if (playersEl) playersEl.textContent = fmt(h.current_players) + ' players';
+            document.getElementById('arc-streak-badge').textContent = 'Streak: ' + (streakVal > 0 ? '+'+streakVal : streakVal);
+
+            drawShotChart(b.shot_chart || []);
+            updateZones(b.shot_chart || []);
+            drawMakesVsMisses(b.shot_chart || []);
+
+        } catch {
+            document.getElementById('status-dot').className = 'status-dot';
+            document.getElementById('status-text').textContent = 'Offline';
+        }
+    }
+
+    async function resetData() {
+    if (!confirm('Reset all shot data?')) return;
+    await fetch(`${CLOUD}/reset`, { method: 'POST' });
+    updateStats();
+}
+    
+    function setText(id, val) { const el=document.getElementById(id); if(el) el.textContent=val; }
 
     // ── Clock ─────────────────────────────────────────────────────────
     function startClock() {
@@ -470,7 +595,7 @@
     startSessionTimer();
     updateStats();
     setInterval(updateStats, 2000);
-    window.addEventListener('resize', () => { drawShotChart([]); updateArcTrend(null, null); updateZones([]); });
+    window.addEventListener('resize', () => { drawShotChart([]); drawMakesVsMisses([]); updateZones([]); });
 </script>
 
 <!-- Background Music -->
