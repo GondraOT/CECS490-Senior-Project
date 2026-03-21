@@ -212,6 +212,18 @@
 <!-- Load stats logic -->
 <script src="{{ url_for('static', filename='js/stats.js') }}"></script>
 
+<!-- Load timers logic -->
+<script src="{{ url_for('static', filename='js/timers.js') }}"></script>
+
+<!-- Load shot chart logic -->
+<script src="{{ url_for('static', filename='js/shot_chart.js') }}"></script>
+
+<!-- Load zone logic -->
+<script src="{{ url_for('static', filename='js/zone.js') }}"></script>
+
+<!-- Load arc chart logic -->
+<script src="{{ url_for('static', filename='js/arc_chart.js') }}"></script>
+
 <script>
     const MEDIAMTX = 'https://hoopiq.tail6a4dd0.ts.net';
 
@@ -257,310 +269,6 @@
         }
     }
 
-    // ── Shot Chart Canvas ─────────────────────────────────────────────
-    function drawShotChart(shotData) {
-        const canvas = document.getElementById('shot-chart-canvas');
-        const ctx = canvas.getContext('2d');
-        const dpr = window.devicePixelRatio || 1;
-        const W = canvas.offsetWidth || 400;
-        const H = 260;
-        canvas.width  = W * dpr;
-        canvas.height = H * dpr;
-        canvas.style.height = H + 'px';
-        ctx.scale(dpr, dpr);
-        ctx.clearRect(0, 0, W, H);
-
-        const pad = 20;
-        const cW = W - pad*2, cH = H - pad - 40;
-        const cx = pad + cW/2, baseline = pad + cH;
-
-        ctx.fillStyle = 'rgba(0,255,136,0.03)';
-        ctx.fillRect(pad, pad, cW, cH);
-
-        ctx.strokeStyle = 'rgba(0,255,136,0.25)';
-        ctx.lineWidth = 1.2;
-        ctx.strokeRect(pad, pad, cW, cH);
-
-        const arcR = cW * 0.44;
-        ctx.beginPath();
-        ctx.arc(cx, baseline, arcR, Math.PI, 0);
-        const cornerX = cx - arcR, cornerX2 = cx + arcR, cornerH = cH * 0.28;
-        ctx.moveTo(pad, baseline - cornerH); ctx.lineTo(cornerX, baseline - cornerH);
-        ctx.moveTo(cornerX2, baseline - cornerH); ctx.lineTo(pad + cW, baseline - cornerH);
-        ctx.stroke();
-
-        const laneW = cW * 0.22, laneH = cH * 0.32, laneX = cx - laneW/2;
-        ctx.strokeRect(laneX, baseline - laneH, laneW, laneH);
-        ctx.beginPath(); ctx.arc(cx, baseline - laneH, laneW/2, Math.PI, 0); ctx.stroke();
-        ctx.beginPath(); ctx.arc(cx, baseline - laneH, laneW/2, 0, Math.PI); ctx.setLineDash([4, 4]); ctx.stroke(); ctx.setLineDash([]);
-        ctx.beginPath(); ctx.arc(cx, baseline - cH*0.05, cW*0.03, 0, Math.PI*2); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(cx - cW*0.07, baseline - cH*0.035); ctx.lineTo(cx + cW*0.07, baseline - cH*0.035); ctx.stroke();
-
-        if (!shotData || shotData.length === 0) {
-            ctx.fillStyle = 'rgba(90,122,99,0.5)'; ctx.font = '10px IBM Plex Mono'; ctx.textAlign = 'center';
-            ctx.fillText('No shot data yet', cx, pad + cH/2);
-            drawLegend(ctx, W, H, pad, 0, 0); return;
-        }
-
-        let makes = 0, misses = 0;
-        shotData.forEach(shot => {
-            const x = pad + (shot.x / 100) * cW;
-            const y = pad + (shot.y / 100) * cH;
-            const made = shot.made;
-            const isSwish = shot.shot_type === 'Swish';
-            if (made) makes++; else misses++;
-            ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI*2);
-            if (isSwish) {
-                ctx.fillStyle = 'rgba(0,229,255,0.85)';
-                ctx.strokeStyle = '#00e5ff';
-            } else if (made) {
-                ctx.fillStyle = 'rgba(255,140,0,0.85)';
-                ctx.strokeStyle = '#ff8c00';
-            } else {
-                ctx.fillStyle = 'rgba(255,68,102,0.6)';
-                ctx.strokeStyle = '#ff4466';
-            }
-            ctx.lineWidth = 1; ctx.fill(); ctx.stroke();
-        });
-
-        drawLegend(ctx, W, H, pad, makes, misses);
-        document.getElementById('shot-count-badge').textContent = shotData.length + ' shots';
-    }
-
-    function drawLegend(ctx, W, H, pad, makes, misses) {
-        const legendY = H - 22;
-        ctx.font = '10px IBM Plex Mono'; ctx.textAlign = 'left';
-
-        // Swish dot
-        ctx.beginPath(); ctx.arc(pad + 8, legendY, 5, 0, Math.PI*2);
-        ctx.fillStyle = 'rgba(0,229,255,0.9)'; ctx.fill();
-        ctx.strokeStyle = '#00e5ff'; ctx.lineWidth = 1; ctx.stroke();
-        ctx.fillStyle = 'rgba(0,229,255,1)'; ctx.fillText('swish', pad + 18, legendY + 4);
-
-        // Made dot
-        ctx.beginPath(); ctx.arc(pad + 75, legendY, 5, 0, Math.PI*2);
-        ctx.fillStyle = 'rgba(255,140,0,0.9)'; ctx.fill();
-        ctx.strokeStyle = '#ff8c00'; ctx.stroke();
-        ctx.fillStyle = 'rgba(255,140,0,1)'; ctx.fillText('made' + (makes ? ' ('+makes+')' : ''), pad + 85, legendY + 4);
-
-        // Missed dot
-        ctx.beginPath(); ctx.arc(pad + 155, legendY, 5, 0, Math.PI*2);
-        ctx.fillStyle = 'rgba(255,68,102,0.7)'; ctx.fill();
-        ctx.strokeStyle = '#ff4466'; ctx.stroke();
-        ctx.fillStyle = 'rgba(255,68,102,0.9)'; ctx.fillText('missed' + (misses ? ' ('+misses+')' : ''), pad + 165, legendY + 4);
-    }
-
-    // ── Zone Accuracy ──────────────────────────────────────────────────
-    const ZONE_MAP = {
-        'Left Corner 3':  { pct:'z-pct-lc', shots:'z-shots-lc', bar:'z-bar-lc' },
-        'Right Corner 3': { pct:'z-pct-rc', shots:'z-shots-rc', bar:'z-bar-rc' },
-        'Above Break 3':  { pct:'z-pct-ab', shots:'z-shots-ab', bar:'z-bar-ab' },
-        'Mid-Range':      { pct:'z-pct-mr', shots:'z-shots-mr', bar:'z-bar-mr' },
-        'Paint':          { pct:'z-pct-pt', shots:'z-shots-pt', bar:'z-bar-pt' },
-    };
-
-    function updateZones(shotData) {
-        if (!shotData || shotData.length === 0) return;
-
-        // Aggregate by zone
-        const zones = {};
-        for (const z of Object.keys(ZONE_MAP)) {
-            zones[z] = { makes: 0, attempts: 0 };
-        }
-        shotData.forEach(shot => {
-            const z = shot.zone;
-            if (zones[z]) {
-                zones[z].attempts++;
-                if (shot.made) zones[z].makes++;
-            }
-        });
-
-        // Find best zone for badge
-        let bestZone = null, bestPct = -1;
-        for (const [name, data] of Object.entries(zones)) {
-            if (data.attempts >= 2) {
-                const pct = data.makes / data.attempts * 100;
-                if (pct > bestPct) { bestPct = pct; bestZone = name; }
-            }
-        }
-        const badge = document.getElementById('best-zone-badge');
-        if (badge) badge.textContent = bestZone ? `Best: ${bestZone} (${bestPct.toFixed(0)}%)` : 'Best zone: --';
-
-        // Update each zone card
-        for (const [name, ids] of Object.entries(ZONE_MAP)) {
-            const data = zones[name];
-            const pctEl    = document.getElementById(ids.pct);
-            const shotsEl  = document.getElementById(ids.shots);
-            const barEl    = document.getElementById(ids.bar);
-            if (!pctEl) continue;
-
-            if (data.attempts === 0) {
-                pctEl.textContent   = '--';
-                shotsEl.textContent = '0 shots';
-                barEl.style.width   = '0%';
-                pctEl.className     = 'zone-pct zone-cold';
-                continue;
-            }
-
-            const pct = data.makes / data.attempts * 100;
-            pctEl.textContent   = pct.toFixed(0) + '%';
-            shotsEl.textContent = data.attempts + ' shot' + (data.attempts !== 1 ? 's' : '');
-            barEl.style.width   = pct + '%';
-
-            // Color by performance
-            if (pct >= 50) {
-                pctEl.className   = 'zone-pct zone-hot';
-                barEl.style.background = 'var(--orange)';
-            } else if (pct >= 30) {
-                pctEl.className   = 'zone-pct zone-warm';
-                barEl.style.background = 'var(--green)';
-            } else {
-                pctEl.className   = 'zone-pct zone-cold';
-                barEl.style.background = 'rgba(0,255,136,0.3)';
-            }
-        }
-    }
-
-
-
-    // ── Makes vs Misses Bar Chart ────────────────────────────────────
-    function drawMakesVsMisses(shotData) {
-        const canvas = document.getElementById('arc-canvas');
-        const ctx = canvas.getContext('2d');
-        const dpr = window.devicePixelRatio || 1;
-        const W = canvas.offsetWidth || 400, H = 180;
-        canvas.width = W * dpr; canvas.height = H * dpr;
-        canvas.style.height = H + 'px';
-        ctx.scale(dpr, dpr);
-        ctx.clearRect(0, 0, W, H);
-
-        const makes  = shotData.filter(s => s.made).length;
-        const misses = shotData.filter(s => !s.made).length;
-        const total  = makes + misses;
-
-        if (total === 0) {
-            ctx.fillStyle = 'rgba(90,122,99,0.6)';
-            ctx.font = '10px IBM Plex Mono'; ctx.textAlign = 'center';
-            ctx.fillText('No shots yet', W/2, H/2); return;
-        }
-
-        const pad = 40, barW = (W - pad*2 - 20) / 2, maxH = H - 60;
-        const makeH  = (makes  / Math.max(makes, misses)) * maxH;
-        const missH  = (misses / Math.max(makes, misses)) * maxH;
-        const makeX  = pad, missX = pad + barW + 20;
-        const baseY  = H - 30;
-
-        // Grid lines
-        ctx.strokeStyle = 'rgba(0,255,136,0.08)'; ctx.lineWidth = 1;
-        for (let i = 0; i <= 4; i++) {
-            const y = baseY - (i/4) * maxH;
-            ctx.beginPath(); ctx.moveTo(pad - 5, y); ctx.lineTo(W - pad + 5, y); ctx.stroke();
-            const val = Math.round((i/4) * Math.max(makes, misses));
-            ctx.fillStyle = 'rgba(0,255,136,0.35)'; ctx.font = '9px IBM Plex Mono';
-            ctx.textAlign = 'right'; ctx.fillText(val, pad - 8, y + 3);
-        }
-
-        // Makes bar
-        const makeGrad = ctx.createLinearGradient(0, baseY - makeH, 0, baseY);
-        makeGrad.addColorStop(0, 'rgba(0,255,136,0.9)');
-        makeGrad.addColorStop(1, 'rgba(0,255,136,0.2)');
-        ctx.fillStyle = makeGrad;
-        ctx.beginPath();
-        ctx.roundRect(makeX, baseY - makeH, barW, makeH, [4, 4, 0, 0]);
-        ctx.fill();
-
-        // Misses bar
-        const missGrad = ctx.createLinearGradient(0, baseY - missH, 0, baseY);
-        missGrad.addColorStop(0, 'rgba(255,68,102,0.9)');
-        missGrad.addColorStop(1, 'rgba(255,68,102,0.2)');
-        ctx.fillStyle = missGrad;
-        ctx.beginPath();
-        ctx.roundRect(missX, baseY - missH, barW, missH, [4, 4, 0, 0]);
-        ctx.fill();
-
-        // Labels
-        ctx.textAlign = 'center'; ctx.font = '600 11px IBM Plex Mono';
-        ctx.fillStyle = '#00ff88';
-        ctx.fillText('MAKES', makeX + barW/2, baseY + 14);
-        ctx.fillText(makes, makeX + barW/2, baseY - makeH - 6);
-        ctx.fillStyle = '#ff4466';
-        ctx.fillText('MISSES', missX + barW/2, baseY + 14);
-        ctx.fillText(misses, missX + barW/2, baseY - missH - 6);
-
-        // FG% center label
-        const fgPct = (makes / total * 100).toFixed(1);
-        ctx.fillStyle = 'rgba(0,255,136,0.5)'; ctx.font = '10px IBM Plex Mono';
-        ctx.fillText(fgPct + '% FG', W/2, baseY + 14);
-    }
-
-    // ── Stats ─────────────────────────────────────────────────────────
-    function fmt(v, suffix='') { return (v === null || v === undefined) ? '--' : v + suffix; }
-
-    function getLastShotClass(type) {
-        if (!type || type === '—') return '';
-        if (type === 'Swish') return 'swish';
-        if (type.includes('Make') || type === 'Swish') return 'make';
-        return 'miss';
-    }
-
-    async function updateStats() {
-        try {
-            const r = await fetch(`${CLOUD}/stats`, {cache:'no-store'});
-            if(!r.ok) throw new Error();
-            const d = await r.json();
-            const online = d.system?.online ?? false;
-            document.getElementById('status-dot').className = 'status-dot' + (online ? ' online' : '');
-            document.getElementById('status-text').textContent = online ? 'Online' : 'Offline';
-
-            const b = d.basketball || {}, s = d.sensors || {}, h = d.heatmap || {};
-
-            setText('attempts',   fmt(b.attempts));
-            setText('makes',      fmt(b.makes));
-            setText('fg-pct',     b.fg_percent !== null && b.fg_percent !== undefined ? b.fg_percent+'%' : '--');
-            setText('two-pct',    b.two_pt_percent  !== null && b.two_pt_percent  !== undefined ? b.two_pt_percent+'%'  : '--');
-            setText('three-pct',  b.three_pt_percent!== null && b.three_pt_percent!== undefined ? b.three_pt_percent+'%' : '--');
-            setText('rim',        fmt(s.rim_hits));
-            setText('backboard',  fmt(s.backboard_hits));
-            const streakVal = b.streak ?? 0;
-            const streakEl = document.getElementById('streak');
-            if (streakEl) {
-                streakEl.textContent = streakVal > 0 ? '+'+streakVal : streakVal === 0 ? '0' : streakVal;
-                streakEl.style.color = streakVal > 0 ? 'var(--green)' : streakVal < 0 ? 'var(--red)' : 'var(--text-dim)';
-            }
-
-            // Shot type breakdown
-            const shotChart = b.shot_chart || [];
-            const backboardMakes  = shotChart.filter(s => s.shot_type === 'Backboard Make').length;
-            const backboardMisses = shotChart.filter(s => s.shot_type === 'Backboard Miss').length;
-            const swishCount      = shotChart.filter(s => s.shot_type === 'Swish').length;
-            setText('backboard-makes',  backboardMakes);
-            setText('backboard-misses', backboardMisses);
-            setText('swishes', swishCount);
-
-            // Last shot type with color
-            const lastShot = b.last_shot_type || '—';
-            const lastShotEl = document.getElementById('last-shot-type');
-            if (lastShotEl) {
-                lastShotEl.textContent = lastShot;
-                lastShotEl.className = 'val small ' + getLastShotClass(lastShot);
-            }
-
-
-            document.getElementById('b-shots-badge').textContent = fmt(b.attempts) + ' shots';
-            const playersEl = document.getElementById('h-players-badge');
-            if (playersEl) playersEl.textContent = fmt(h.current_players) + ' players';
-            document.getElementById('arc-streak-badge').textContent = 'Streak: ' + (streakVal > 0 ? '+'+streakVal : streakVal);
-
-            drawShotChart(b.shot_chart || []);
-            updateZones(b.shot_chart || []);
-            drawMakesVsMisses(b.shot_chart || []);
-
-        } catch {
-            document.getElementById('status-dot').className = 'status-dot';
-            document.getElementById('status-text').textContent = 'Offline';
-        }
-    }
-
     async function resetData() {
     if (!confirm('Reset all shot data?')) return;
     await fetch(`${CLOUD}/reset`, { method: 'POST' });
@@ -568,24 +276,6 @@
 }
     
     function setText(id, val) { const el=document.getElementById(id); if(el) el.textContent=val; }
-
-    // ── Clock ─────────────────────────────────────────────────────────
-    function startClock() {
-        const tick = () => document.getElementById('last-update').textContent = 'Last update: ' + new Date().toLocaleTimeString();
-        tick(); setInterval(tick, 1000);
-    }
-
-    function startSessionTimer() {
-        const start = Date.now();
-        const tick = () => {
-            const e=Math.floor((Date.now()-start)/1000);
-            const h=String(Math.floor(e/3600)).padStart(2,'0');
-            const m=String(Math.floor((e%3600)/60)).padStart(2,'0');
-            const s=String(e%60).padStart(2,'0');
-            document.getElementById('h-session-badge').textContent = h+':'+m+':'+s;
-        };
-        tick(); setInterval(tick, 1000);
-    }
 
     // ── Boot ──────────────────────────────────────────────────────────
     updateAuthUI();
@@ -596,36 +286,6 @@
     updateStats();
     setInterval(updateStats, 2000);
     window.addEventListener('resize', () => { drawShotChart([]); drawMakesVsMisses([]); updateZones([]); });
-</script>
-
-<!-- Background Music -->
-<audio id="bg-music" loop>
-    <source src="https://raw.githubusercontent.com/GondraOT/CECS490-Senior-Project/main/hoopiq-api/BG.mp3" type="audio/mpeg">
-</audio>
-
-<!-- Mute Button -->
-<button class="mute-btn" id="mute-btn" onclick="toggleMute()">
-    <span class="icon" id="mute-icon">🔊</span>
-    <span id="mute-label">MUSIC</span>
-</button>
-
-<script>
-    const music = document.getElementById('bg-music');
-    const muteIcon = document.getElementById('mute-icon');
-    const muteLabel = document.getElementById('mute-label');
-    let muted = false;
-    music.volume = 0.4;
-    document.addEventListener('click', function startMusic() {
-        music.play().catch(() => {});
-        document.removeEventListener('click', startMusic);
-    }, { once: true });
-    function toggleMute() {
-        muted = !muted; music.muted = muted;
-        muteIcon.textContent = muted ? '🔇' : '🔊';
-        muteLabel.textContent = muted ? 'MUTED' : 'MUSIC';
-        document.getElementById('mute-btn').style.borderColor = muted ? 'rgba(255,68,102,0.4)' : '';
-        document.getElementById('mute-btn').style.color = muted ? 'rgba(255,68,102,0.7)' : '';
-    }
 </script>
 </body>
 </html>

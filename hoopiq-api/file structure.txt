@@ -33,7 +33,6 @@ hoopiq-api/
 │  │   ├─ auth.js       # Login/Register modal logic, localStorage user handling
 │  │   ├─ stats.js      # Fetch /stats API and update dashboard values
 │  │   ├─ timers.js     # Clock + session timer
-│  │   ├─ audio.js      # Background music + mute button control
 │  │   │
 │  │   ├─ shot_chart.js # Canvas drawing for shot chart visualization
 │  │   ├─ zones.js      # Zone accuracy grid calculations
