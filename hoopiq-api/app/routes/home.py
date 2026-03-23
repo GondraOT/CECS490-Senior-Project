@@ -4,10 +4,12 @@
 # Team Members: Christopher Hong, Alfonso Mejia Vasquez, Gondra Kelly, Matthew Margulies, Carlos Orozco
 # Start Web Development Date: October 2025
 # Finished Web Development Date: June 2026 (Ideally)
-# HoopIQ Cloud API
-# Flask backend for receiving data from Raspberry Pi and serving to website
+# app/routes/home.py
 
-from app import app
+from flask import Blueprint, render_template
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000, debug=True)
+home_bp = Blueprint('home', __name__)
+
+@home_bp.route('/', methods=['GET'])
+def home():
+    return render_template('index.html')  # your main page with Jinja includes

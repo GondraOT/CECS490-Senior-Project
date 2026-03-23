@@ -8,7 +8,9 @@ hoopiq-api/
 │  │  ├─ update.py
 │  │  ├─ stats.py
 │  │  ├─ frames.py
-│  │  └─ health.py
+│  │  ├─ health.py
+|  |  ├─ reset.py
+│  │  └─ home.py
 │  └─ utils.py          # Helper functions (fg%, zone calculations, etc.)
 │
 ├─ templates/           # HTML templates (Jinja)
@@ -37,8 +39,5 @@ hoopiq-api/
 │  │   ├─ shot_chart.js # Canvas drawing for shot chart visualization
 │  │   ├─ zones.js      # Zone accuracy grid calculations
 │  │   └─ arc_chart.js  # Arc trend chart (Chart.js logic)
-│  │
-│  └─ audio/
-│      └─ bg-music.mp3  # Background music for UI
 │
 └─ requirements.txt
