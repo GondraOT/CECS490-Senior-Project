@@ -28,3 +28,7 @@ app.register_blueprint(frames_bp)
 # from app.routes.health import health
 from app.routes.health import health_bp
 app.register_blueprint(health_bp)
+
+@app.route('/test')
+def test():
+    return "working"
