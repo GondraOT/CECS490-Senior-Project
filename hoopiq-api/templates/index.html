@@ -277,15 +277,18 @@
     
     function setText(id, val) { const el=document.getElementById(id); if(el) el.textContent=val; }
 
-    // ── Boot ──────────────────────────────────────────────────────────
-    updateAuthUI();
-    startWebRTC('basketball-img','basketball-placeholder','basketball-error','basketball');
-    startWebRTC('heatmap-img',   'heatmap-placeholder',   'heatmap-error',   'heatmap');
-    startClock();
-    startSessionTimer();
-    updateStats();
-    setInterval(updateStats, 2000);
-    window.addEventListener('resize', () => { drawShotChart([]); drawMakesVsMisses([]); updateZones([]); });
+    // // ── Boot ──────────────────────────────────────────────────────────
+    // updateAuthUI();
+    // startWebRTC('basketball-img','basketball-placeholder','basketball-error','basketball');
+    // startWebRTC('heatmap-img',   'heatmap-placeholder',   'heatmap-error',   'heatmap');
+    // startClock();
+    // startSessionTimer();
+    // updateStats();
+    // setInterval(updateStats, 2000);
+    // window.addEventListener('resize', () => { drawShotChart([]); drawMakesVsMisses([]); updateZones([]); });
 </script>
+
+<!-- Main Application Logic -->
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>
