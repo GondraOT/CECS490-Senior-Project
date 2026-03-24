@@ -8,12 +8,28 @@ hoopiq-api/
 │  │   ├─ advanced_stats.html
 │  │   ├─ streams.html
 │  │   ├─ zone_accuracy.html
-│  │   ├─ charts.html
+│  │   ├─ charts_row.html
 │  │   ├─ footer.html
 │  │   └─ index.html
 │  │
+│  ├─ static/              # Static assets served by Flask
+│  │  ├─ css/
+│  │  │   └─ style.css     # Optional external CSS (currently unused since styles are inline)
+│  │  │
+│  │  └─ js/
+│  │      ├─ main.js       # Application startup (calls other modules, initializes everything)
+│  │      │
+│  │      ├─ auth.js       # Login/Register modal logic, localStorage user handling
+│  │      ├─ stats.js      # Fetch /stats API and update dashboard values
+│  │      ├─ timers.js     # Clock + session timer
+│  │      │
+│  │      ├─ shot_chart.js # Canvas drawing for shot chart visualization
+│  │      ├─ zone.js      # Zone accuracy grid calculations
+│  │      └─ arc_chart.js  # Arc trend chart (Chart.js logic)
+│  │
 │  ├─ __init__.py       # Initialize Flask app, CORS
 │  ├─ data_store.py     # latest_data
+│  │
 │  ├─ routes/
 │  │  ├─ __init__.py
 │  │  ├─ update.py
@@ -25,20 +41,5 @@ hoopiq-api/
 │  │
 │  └─ utils.py          # Helper functions (fg%, zone calculations, etc.)
 │
-│
-├─ static/              # Static assets served by Flask
-│  ├─ css/
-│  │   └─ style.css     # Optional external CSS (currently unused since styles are inline)
-│  │
-│  ├─ js/
-│  │   ├─ main.js       # Application startup (calls other modules, initializes everything)
-│  │   │
-│  │   ├─ auth.js       # Login/Register modal logic, localStorage user handling
-│  │   ├─ stats.js      # Fetch /stats API and update dashboard values
-│  │   ├─ timers.js     # Clock + session timer
-│  │   │
-│  │   ├─ shot_chart.js # Canvas drawing for shot chart visualization
-│  │   ├─ zones.js      # Zone accuracy grid calculations
-│  │   └─ arc_chart.js  # Arc trend chart (Chart.js logic)
-│
+├─ hooopiq_api.py
 └─ requirements.txt
