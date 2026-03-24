@@ -41,3 +41,9 @@ def update(new_data: dict):
         if key in latest_data:
             latest_data[key] = value
     latest_data['last_update'] = time.time()
+
+
+# Dev Notes:
+# This is where I can find the data being shared.
+# This is where I can also pull data for the table of individual shots.
+# Once the data is pulled, store it in a file and have the ability to export.
