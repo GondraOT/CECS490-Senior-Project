@@ -1,29 +1,30 @@
 hoopiq-api/
 ├─ app/
+│  ├─ templates/
+│  │   ├─ header.html
+│  │   ├─ modal.html
+│  │   ├─ primary_stats.html
+│  │   ├─ shot_breakdown.html
+│  │   ├─ advanced_stats.html
+│  │   ├─ streams.html
+│  │   ├─ zone_accuracy.html
+│  │   ├─ charts.html
+│  │   ├─ footer.html
+│  │   └─ index.html
+│  │
 │  ├─ __init__.py       # Initialize Flask app, CORS
 │  ├─ data_store.py     # latest_data
 │  ├─ routes/
 │  │  ├─ __init__.py
-│  │  ├─ home.py
 │  │  ├─ update.py
 │  │  ├─ stats.py
 │  │  ├─ frames.py
 │  │  ├─ health.py
-|  |  ├─ reset.py
+│  │  ├─ reset.py
 │  │  └─ home.py
+│  │
 │  └─ utils.py          # Helper functions (fg%, zone calculations, etc.)
 │
-├─ templates/           # HTML templates (Jinja)
-│  ├─ header.html
-│  ├─ modal.html
-│  ├─ primary_stats.html
-│  ├─ shot_breakdown.html
-│  ├─ advanced_stats.html
-│  ├─ streams.html
-│  ├─ zone_accuracy.html
-│  ├─ charts.html
-│  ├─ footer.html
-│  └─ index.html        # Main HTML page that includes all components
 │
 ├─ static/              # Static assets served by Flask
 │  ├─ css/
