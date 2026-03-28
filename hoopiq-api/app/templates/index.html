@@ -120,6 +120,35 @@
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
         .stream-error { display:none; position:absolute; bottom:0; left:0; right:0; background:rgba(255,68,102,0.12); border-top:1px solid rgba(255,68,102,0.35); color:#ff6680; font-size:0.68em; padding:7px 14px; text-align:center; }
 
+        /* ── New Charts Layout (Full Width Stack) ── */
+        .charts-container {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        
+        /* Each chart takes full width of container */
+        .chart-section {
+            width: 100%;
+        }
+        
+        /* Make canvases responsive and fill width */
+        .chart-section canvas {
+            width: 100% !important;
+            height: auto;
+            display: block;
+        }
+        
+        /* Optional: make them visually consistent with cards */
+        .chart-section {
+            background: var(--bg-card);
+            border: 1px solid var(--green-border);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
         /* ── Shot Chart ── */
         .chart-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:10px; overflow:hidden; }
         .chart-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--green-border); }
@@ -169,10 +198,6 @@
         @media (max-width:900px) { .row1 { grid-template-columns:repeat(3,1fr); } .row2 { grid-template-columns:repeat(2,1fr); } .row3 { grid-template-columns:repeat(3,1fr); } .bottom-grid { grid-template-columns:1fr 1fr; } }
         @media (max-width:700px) { .row1 { grid-template-columns:repeat(3,1fr); } .row2 { grid-template-columns:repeat(2,1fr); } .bottom-grid { grid-template-columns:1fr; } .charts-row { grid-template-columns:1fr; } }
         @media (max-width:480px) { .row1 { grid-template-columns:repeat(2,1fr); } .row2 { grid-template-columns:repeat(2,1fr); } .row3 { grid-template-columns:repeat(2,1fr); } }
-
-        /* ── Mute Button ── */
-        .mute-btn { position: fixed; bottom: 24px; right: 24px; z-index: 50; background: var(--bg-card); border: 1px solid var(--green-border); border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 7px; cursor: pointer; font-family: var(--mono); font-size: 0.7em; color: var(--text-dim); letter-spacing: 0.06em; transition: all 0.2s; }
-        .mute-btn:hover { border-color: var(--green-dim); color: var(--text); }
     </style>
 </head>
 <body>

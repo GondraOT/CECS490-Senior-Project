@@ -13,7 +13,7 @@ function drawShotChart(shotData) {
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
     const W = canvas.offsetWidth || 400;
-    const H = 260;
+    const H = Math.max(W * 0.8, 500);
     canvas.width  = W * dpr;
     canvas.height = H * dpr;
     canvas.style.height = H + 'px';
@@ -24,6 +24,23 @@ function drawShotChart(shotData) {
     const cW = W - pad*2, cH = H - pad - 40;
     const cx = pad + cW/2, baseline = pad + cH;
 
+    // ── Real court dimensions (feet) ─────────────────────────────
+    const COURT_W = 50;
+    const COURT_L = 47;
+    
+    // scale factors
+    const scaleX = cW / COURT_W;
+    const scaleY = cH / COURT_L;
+    
+    // convert court coords → canvas
+    function toCanvasX(x) {
+        return cx + x * scaleX;
+    }
+    
+    function toCanvasY(y) {
+        return baseline - y * scaleY;
+    }
+
     ctx.fillStyle = 'rgba(0,255,136,0.03)';
     ctx.fillRect(pad, pad, cW, cH);
 
@@ -31,20 +48,75 @@ function drawShotChart(shotData) {
     ctx.lineWidth = 1.2;
     ctx.strokeRect(pad, pad, cW, cH);
 
-    const arcR = cW * 0.44;
+    ctx.strokeStyle = 'rgba(0,255,136,0.6)';
+    ctx.lineWidth = 1.5;
+    
+    // ── Court boundary ─────────────────────────────────
+    ctx.strokeRect(pad, pad, cW, cH);
+    
+    // ── Backboard ──────────────────────────────────────
     ctx.beginPath();
-    ctx.arc(cx, baseline, arcR, Math.PI, 0);
-    const cornerX = cx - arcR, cornerX2 = cx + arcR, cornerH = cH * 0.28;
-    ctx.moveTo(pad, baseline - cornerH); ctx.lineTo(cornerX, baseline - cornerH);
-    ctx.moveTo(cornerX2, baseline - cornerH); ctx.lineTo(pad + cW, baseline - cornerH);
+    ctx.moveTo(toCanvasX(-3), toCanvasY(4));
+    ctx.lineTo(toCanvasX(3), toCanvasY(4));
+    ctx.stroke();
+    
+    // ── Rim ────────────────────────────────────────────
+    ctx.beginPath();
+    ctx.arc(toCanvasX(0), toCanvasY(5.25), 0.75 * scaleX, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    // ── Paint (key) ────────────────────────────────────
+    ctx.strokeRect(
+        toCanvasX(-6),
+        toCanvasY(19),
+        12 * scaleX,
+        19 * scaleY
+    );
+    
+    // ── Free throw circle ──────────────────────────────
+    ctx.beginPath();
+    for (let t = Math.PI; t >= 0; t -= 0.01) {
+        const x = 6 * Math.cos(t);
+        const y = 19 + 6 * Math.sin(t);
+        ctx.lineTo(toCanvasX(x), toCanvasY(y));
+    }
+    ctx.stroke();
+    
+    // dashed bottom half
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    for (let t = 0; t <= Math.PI; t += 0.01) {
+        const x = 6 * Math.cos(t);
+        const y = 19 + 6 * Math.sin(t);
+        ctx.lineTo(toCanvasX(x), toCanvasY(y));
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // ── 3-point line arc ─────────────────────────────────
+    const radius3PT = 19.75;
+    const centerY = 5.25;
+
+    ctx.beginPath();
+    for (let t = Math.PI; t >= 0; t -= 0.01) {
+        const x = radius3PT * Math.cos(t);
+        const y = centerY + radius3PT * Math.sin(t);
+        ctx.lineTo(toCanvasX(x), toCanvasY(y));
+    }
     ctx.stroke();
 
-    const laneW = cW * 0.22, laneH = cH * 0.32, laneX = cx - laneW/2;
-    ctx.strokeRect(laneX, baseline - laneH, laneW, laneH);
-    ctx.beginPath(); ctx.arc(cx, baseline - laneH, laneW/2, Math.PI, 0); ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx, baseline - laneH, laneW/2, 0, Math.PI); ctx.setLineDash([4, 4]); ctx.stroke(); ctx.setLineDash([]);
-    ctx.beginPath(); ctx.arc(cx, baseline - cH*0.05, cW*0.03, 0, Math.PI*2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx - cW*0.07, baseline - cH*0.035); ctx.lineTo(cx + cW*0.07, baseline - cH*0.035); ctx.stroke();
+    // ── 3-point line side markers ─────────────────────────────
+    const threePointX1 = radius3PT * Math.cos(0);
+    const threePointY1 = centerY + radius3PT * Math.sin(0);
+    const threePointX2 = radius3PT * Math.cos(Math.PI);
+    const threePointY2 = centerY + radius3PT * Math.sin(Math.PI);
+    
+    ctx.beginPath();
+    ctx.moveTo(toCanvasX(threePointX1), toCanvasY(threePointY1));
+    ctx.lineTo(toCanvasX(threePointX1), toCanvasY(0));
+    ctx.moveTo(toCanvasX(threePointX2), toCanvasY(threePointY2));
+    ctx.lineTo(toCanvasX(threePointX2), toCanvasY(0));
+    ctx.stroke();
 
     if (!shotData || shotData.length === 0) {
         ctx.fillStyle = 'rgba(90,122,99,0.5)'; ctx.font = '10px IBM Plex Mono'; ctx.textAlign = 'center';
@@ -54,8 +126,8 @@ function drawShotChart(shotData) {
 
     let makes = 0, misses = 0;
     shotData.forEach(shot => {
-        const x = pad + (shot.x / 100) * cW;
-        const y = pad + (shot.y / 100) * cH;
+        const x = toCanvasX((shot.x - 50) * (COURT_W / 100));
+        const y = toCanvasY(shot.y * (COURT_L / 100));
         const made = shot.made;
         const isSwish = shot.shot_type === 'Swish';
         if (made) makes++; else misses++;
