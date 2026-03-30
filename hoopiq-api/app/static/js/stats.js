@@ -44,6 +44,17 @@ async function updateStats() {
         const s = d.sensors || {};
         const h = d.heatmap || {};
 
+        // // Temp data
+        // b.shot_chart = [
+        //     { made: true, shot_type: 'Swish' },
+        //     { made: true, shot_type: 'Backboard Make' },
+        //     { made: false, shot_type: 'Backboard Miss' },
+        //     { made: false, shot_type: 'Rim Hit' }
+        // ];
+
+        console.log("FULL DATA:", d);
+        console.log("SHOT CHART:", b.shot_chart);
+
         setText('attempts', fmt(b.attempts));
         setText('makes', fmt(b.makes));
         setText('fg-pct', b.fg_percent != null ? b.fg_percent + '%' : '--');
@@ -81,12 +92,39 @@ async function updateStats() {
         if (typeof updateZones === 'function') updateZones(b.shot_chart || []);
         if (typeof updateArcTrend === 'function') updateArcTrend(b.avg_arc, b.avg_entry_angle);
 
+        // ✅ ADD THIS
+        updateShotTable(b.shot_chart || []);
+
     } catch (err) {
         console.error('Stats update error:', err);
         const statusDotEl = document.getElementById('status-dot');
         if (statusDotEl) statusDotEl.className = 'status-dot';
         setText('status-text', 'Offline');
     }
+}
+
+function updateShotTable(shots) {
+    const tbody = document.getElementById('shot-table-body');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    shots.forEach((shot, index) => {
+        const row = document.createElement('tr');
+
+        const result = shot.made ? 'Make' : 'Miss';
+        const swish = shot.shot_type === 'Swish' ? 'Swish' : 'Miss';
+        const backboard = shot.shot_type.includes('Backboard') ? 'Hit' : 'Miss';
+
+        row.innerHTML = `
+            <td>${index + 1}</td>
+            <td>${backboard}</td>
+            <td>${swish}</td>
+            <td>${result}</td>
+        `;
+
+        tbody.appendChild(row);
+    });
 }
 
 // ── Auto-run on DOM ready ───────────────────────────────────────────

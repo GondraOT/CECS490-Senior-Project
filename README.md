@@ -3,6 +3,7 @@ Python/C++ = Initial Coding Language
 
 
 for venv:
+python -m venv venv
 pip install -r requirements.txt
 python hoopiq_api.py
 

@@ -4,7 +4,7 @@
    Team Members: Christopher Hong, Alfonso Mejia Vasquez, Gondra Kelly, Matthew Margulies, Carlos Orozco
    Start Web Development Date: October 2025
    Finished Web Development Date: June 2026 (Ideally)
-   static/js/shot_chart.js - Handles shot chart visualization
+   static/js/main.js - Handles shot chart visualization
 */
 
 // ── Boot ──────────────────────────────────────────────────────────
