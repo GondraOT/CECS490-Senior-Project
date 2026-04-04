@@ -10,6 +10,10 @@
 // ── Constants ───────────────────────────────────────────────────────
 const CLOUD = 'https://cecs490-senior-project.onrender.com';
 
+// ── Export State ────────────────────────────────────────────────
+let latestShots = [];
+let latestStats = {};
+
 // ── Helpers ────────────────────────────────────────────────────────
 function fmt(v, suffix = '') {
     return (v === null || v === undefined) ? '--' : v + suffix;
@@ -25,6 +29,18 @@ function getLastShotClass(type) {
 function setText(id, val) {
     const el = document.getElementById(id);
     if (el) el.textContent = val;
+}
+
+function downloadFile(content, filename, type) {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+
+    URL.revokeObjectURL(url);
 }
 
 // ── Main Stats Function ────────────────────────────────────────────
@@ -51,6 +67,9 @@ async function updateStats() {
         //     { made: false, shot_type: 'Backboard Miss' },
         //     { made: false, shot_type: 'Rim Hit' }
         // ];
+
+        latestStats = d;
+        latestShots = b.shot_chart || [];
 
         console.log("FULL DATA:", d);
         console.log("SHOT CHART:", b.shot_chart);
@@ -88,12 +107,11 @@ async function updateStats() {
         if (arcStreakBadge) arcStreakBadge.textContent = 'Streak: ' + fmt(b.streak);
 
         // Optional chart/zone functions (must be defined elsewhere)
-        if (typeof drawShotChart === 'function') drawShotChart(b.shot_chart || []);
-        if (typeof updateZones === 'function') updateZones(b.shot_chart || []);
+        if (typeof drawShotChart === 'function') drawShotChart(latestShots);
+        if (typeof updateZones === 'function') updateZones(latestShots);
         if (typeof updateArcTrend === 'function') updateArcTrend(b.avg_arc, b.avg_entry_angle);
 
-        // ✅ ADD THIS
-        updateShotTable(b.shot_chart || []);
+        updateShotTable(latestShots);
 
     } catch (err) {
         console.error('Stats update error:', err);
@@ -103,6 +121,7 @@ async function updateStats() {
     }
 }
 
+// ── Shot Table Update ─────────────────────────────────────────────
 function updateShotTable(shots) {
     const tbody = document.getElementById('shot-table-body');
     if (!tbody) return;
@@ -127,8 +146,48 @@ function updateShotTable(shots) {
     });
 }
 
+// ── Export Functions ─────────────────────────────────────────────
+function exportCSV() {
+    if (!latestShots.length) {
+        alert('No shot data to export.');
+        return;
+    }
+
+    const header = ['#', 'Backboard', 'Swish', 'Result'];
+
+    const rows = latestShots.map((shot, i) => [
+        i + 1,
+        shot.shot_type.includes('Backboard') ? 'Hit' : 'Miss',
+        shot.shot_type === 'Swish' ? 'Swish' : 'Miss',
+        shot.made ? 'Make' : 'Miss'
+    ]);
+
+    const csv = [header, ...rows]
+        .map(r => r.join(','))
+        .join('\n');
+
+    downloadFile(csv, 'shot_table.csv', 'text/csv');
+}
+
+function exportStatsJSON() {
+    if (!latestStats || !latestStats.basketball) {
+        alert('No stats available.');
+        return;
+    }
+
+    const json = JSON.stringify(latestStats, null, 2);
+    downloadFile(json, 'stats.json', 'application/json');
+}
+
 // ── Auto-run on DOM ready ───────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-    updateStats();               // initial fetch
-    setInterval(updateStats, 2000); // refresh every 2s
+    updateStats();
+    setInterval(updateStats, 2000);
+
+    // Export buttons
+    document.getElementById('export-csv-btn')
+        ?.addEventListener('click', exportCSV);
+
+    document.getElementById('export-json-btn')
+        ?.addEventListener('click', exportStatsJSON);
 });
