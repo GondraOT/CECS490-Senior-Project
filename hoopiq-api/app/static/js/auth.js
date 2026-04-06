@@ -10,8 +10,6 @@
 // =============================
 // Local Storage Helpers
 // =============================
-
-
 function getUsers() {
     const users = localStorage.getItem("users");
     return users ? JSON.parse(users) : {};
@@ -32,23 +30,25 @@ function clearSession() {
 // =============================
 // Modal Controls
 // =============================
-
-function openModal() {
+function openModal(tab = "login") {
     const modal = document.getElementById("auth-modal");
-    if (modal) modal.style.display = "flex";
+    if (modal) {
+        modal.classList.add("active");
+        switchTab(tab);
+    }
 }
 
 function closeModal() {
     const modal = document.getElementById("auth-modal");
-    if (modal) modal.style.display = "none";
+    if (modal) modal.classList.remove("active");
 }
 
 function switchTab(tab) {
-    const loginTab = document.getElementById("login-tab");
-    const registerTab = document.getElementById("register-tab");
+    const loginTab = document.getElementById("tab-login");
+    const registerTab = document.getElementById("tab-register");
 
-    const loginForm = document.getElementById("login-form");
-    const registerForm = document.getElementById("register-form");
+    const loginForm = document.getElementById("form-login");
+    const registerForm = document.getElementById("form-register");
 
     if (!loginTab || !registerTab || !loginForm || !registerForm) return;
 
@@ -71,24 +71,23 @@ function switchTab(tab) {
 // =============================
 // Login
 // =============================
-
 function handleLogin() {
-    const usernameInput = document.getElementById("login-username");
+    const emailInput = document.getElementById("login-email");
     const passwordInput = document.getElementById("login-password");
 
-    if (!usernameInput || !passwordInput) return;
+    if (!emailInput || !passwordInput) return;
 
-    const username = usernameInput.value.trim();
+    const email = emailInput.value.trim();
     const password = passwordInput.value.trim();
 
     const users = getUsers();
 
-    if (!users[username] || users[username] !== password) {
-        alert("Invalid username or password.");
+    if (!users[email] || users[email] !== password) {
+        alert("Invalid email or password.");
         return;
     }
 
-    saveSession(username);
+    saveSession(email);
     updateAuthUI();
     closeModal();
 }
@@ -97,30 +96,39 @@ function handleLogin() {
 // =============================
 // Register
 // =============================
-
 function handleRegister() {
-    const usernameInput = document.getElementById("register-username");
-    const passwordInput = document.getElementById("register-password");
+    const nameInput = document.getElementById("reg-name");
+    const emailInput = document.getElementById("reg-email");
+    const passwordInput = document.getElementById("reg-password");
+    const confirmInput = document.getElementById("reg-confirm");
 
-    if (!usernameInput || !passwordInput) return;
+    if (!nameInput || !emailInput || !passwordInput || !confirmInput) return;
 
-    const username = usernameInput.value.trim();
+    const name = nameInput.value.trim();
+    const email = emailInput.value.trim();
     const password = passwordInput.value.trim();
+    const confirm = confirmInput.value.trim();
 
-    if (!username || !password) {
+    if (!name || !email || !password || !confirm) {
         alert("Please fill out all fields.");
+        return;
+    }
+
+    if (password !== confirm) {
+        alert("Passwords do not match.");
         return;
     }
 
     const users = getUsers();
 
-    if (users[username]) {
+    if (users[email]) {
         alert("User already exists.");
         return;
     }
 
-    users[username] = password;
-    saveUsers(users);
+    users[email] = password;
+
+    localStorage.setItem("users", JSON.stringify(users));
 
     alert("Account created. You can now log in.");
 
@@ -131,7 +139,6 @@ function handleRegister() {
 // =============================
 // Logout
 // =============================
-
 function handleLogout() {
     clearSession();
     updateAuthUI();
@@ -141,23 +148,56 @@ function handleLogout() {
 // =============================
 // Update Auth UI
 // =============================
-
 function updateAuthUI() {
     const user = getSession();
 
-    const loginBtn = document.getElementById("login-btn");
-    const logoutBtn = document.getElementById("logout-btn");
-    const userLabel = document.getElementById("user-label");
+    const authButtons = document.getElementById("auth-buttons");
+    const userInfo = document.getElementById("user-info");
+    const userGreeting = document.getElementById("user-greeting");
 
-    if (!loginBtn || !logoutBtn || !userLabel) return;
+    if (!authButtons || !userInfo || !userGreeting) return;
 
     if (user) {
-        loginBtn.style.display = "none";
-        logoutBtn.style.display = "inline-block";
-        userLabel.textContent = user;
+        // Show logged-in UI
+        authButtons.style.display = "none";
+        userInfo.style.display = "flex";
+        userGreeting.textContent = user;
     } else {
-        loginBtn.style.display = "inline-block";
-        logoutBtn.style.display = "none";
-        userLabel.textContent = "Guest";
+        // Show guest UI
+        authButtons.style.display = "flex";
+        userInfo.style.display = "none";
+        userGreeting.textContent = "";
     }
 }
+
+// =============================
+// Clear All Auth Data (For Testing)
+// =============================
+function clearAllAuthData() {
+    localStorage.removeItem("users");
+    localStorage.removeItem("session_user");
+    console.log("Auth data cleared.");
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    const modal = document.getElementById("auth-modal");
+    const closeBtn = document.getElementById("modal-close");
+
+    // Close button (✕)
+    if (closeBtn) {
+        closeBtn.addEventListener("click", closeModal);
+    }
+
+    // Click outside modal closes it
+    if (modal) {
+        modal.addEventListener("click", (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+    }
+
+    updateAuthUI();
+});
+
+window.clearAllAuthData = clearAllAuthData;

@@ -7,6 +7,9 @@ python -m venv venv
 pip install -r requirements.txt
 python hoopiq_api.py
 
+run this to clear auth data in website console:
+clearAllAuthData();
+
 website https://www.hoopiq.shop/
 alt website? https://cecs490-senior-project.onrender.com
 
