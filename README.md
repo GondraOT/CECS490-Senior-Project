@@ -13,5 +13,7 @@ clearAllAuthData();
 website https://www.hoopiq.shop/
 alt website? https://cecs490-senior-project.onrender.com
 
-dont forget to fix the log in and register button window
-data_store.py for stats info
+dev notes:
+let user log in and see old session
+moment user take a shot and esp32 sends data, reset all data and start new "session"
+let user log out and log in to still see old session and export whenever
