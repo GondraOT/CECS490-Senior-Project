@@ -128,7 +128,18 @@ function handleLogin() {
         return;
     }
 
+    // ✅ Save session FIRST
     saveSession(email);
+
+    // ✅ Reset runtime state BEFORE loading user data
+    if (window.resetSessionState) {
+        window.resetSessionState();
+    }
+
+    // ✅ Stop any running simulation
+    window.simulateShots = false;
+
+    // UI updates
     updateAuthUI();
     closeModal();
 
@@ -142,6 +153,7 @@ function handleLogin() {
         saveUserData(allUserData);
     }
 
+    // ✅ Load fresh session data AFTER reset
     loadUserSessionData(email);
 }
 
@@ -204,8 +216,24 @@ function handleRegister() {
 // Logout
 // =============================
 function handleLogout() {
+    // 1. Clear session
     clearSession();
+
+    // 2. Reset stats/session state (from stats.js)
+    if (window.resetSessionState) {
+        window.resetSessionState();
+    }
+
+    // 3. Stop simulation
+    window.simulateShots = false;
+
+    // 4. Update UI
     updateAuthUI();
+
+    console.log("🔴 Logged out");
+
+    // 5. Reload to ensure clean state
+    window.location.reload();
 }
 
 
@@ -240,6 +268,7 @@ function updateAuthUI() {
 function clearAllAuthData() {
     localStorage.removeItem("users");
     localStorage.removeItem("session_user");
+    localStorage.removeItem("user_data");
     console.log("Auth data cleared.");
 }
 

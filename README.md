@@ -39,186 +39,136 @@ website https://www.hoopiq.shop/
 alt website? https://cecs490-senior-project.onrender.com
 
 dev notes:
-user will now be able to see their old session data
-still needs to fix when new data from esp32 comes in, data resets
-multiple users can now create an account
-table now able to update and the stats now reflect the table
 
-chatgpt notes:
-✅ ✅ What We’ve Completed
-🔐 Authentication System
-LocalStorage-based user system implemented
-Functions:
-getUsers()
-getSession()
-saveSession()
-clearSession()
-Login + register working
-Session persists across refresh
-Auth modal behavior fixed:
-Close button works
-Clicking outside works properly
-Enter key triggers login/register
-🧾 User Data Storage
-User-specific data stored in localStorage:
-shots
-stats
 
-Structure:
+📝 Project Handoff Note — HoopIQ Basketball Shot Tracker
+📌 Current Status
+------------------------------------------------------------
+We have implemented:
+        ◘ User authentication (register, login, logout)
+        ◘ Local storage persistence for:
+                ◘ Users
+                ◘ Session state
+                ◘ User shot history (user_data)
+        ◘ Stats tracking and visualization
+        ◘ Backend polling from ESP32 /stats endpoint
+        ◘ Shot table rendering and computed statistics
+        ◘ Export functionality (CSV + JSON)
+-----------------------------------------------------------
+⚙️ Key Architecture Overview
+Data Sources:
+        1. Local Storage
+                ◘ users → email/password credentials
+                ◘ session_user → currently logged-in user
+                ◘ user_data → per-user shot history + stats
+        2. Backend (/stats)
+                ◘ Provides live shot data (shot_chart)
+                ◘ Provides system/sensor/heatmap info
+-----------------------------------------------------------
+🔄 Current Data Flow
+        1. User logs in
+        2. App loads stored user data from localStorage
+        3. App polls backend every 2 seconds (updateStats)
+        4. Backend shots are merged into local user data
+        5. UI updates (table, stats, charts)
+-----------------------------------------------------------
+⚠️ Known Behavior / Issue Being Addressed
+Problem:
+        ◘ Backend returns cumulative shot history
+        ◘ When user logs out and logs back in:
+                ◘ Old shots reappear (from local storage)
+                ◘ New backend shots may get incorrectly merged into previous session history
+                ◘ No clear separation between sessions
+--------------------------------------------------------------
+🧠 Solution Direction Implemented (In Progress)
 
-{
-  "demo@test.com": {
-    shots: [...],
-    stats: {...}
-  }
-}
-Able to load and display per-user data on login
-📡 Data Flow (Frontend Logic)
-Backend data (ESP32 simulation / API) is received periodically
-updateStats():
-Pulls backend data
-Merges with user session data if logged in
-Shots are stored in:
-latestShots (single source of truth for UI)
-📊 Shot Table
-Table renders dynamically from latestShots
-Each shot shows:
-Shot type
-Made / missed
-Table updates automatically when new shots arrive
-📈 Stats System
-Stats are computed from the table (shots) instead of relying on backend stats
+We introduced the concept of a session boundary:
 
-Implemented:
+✅ New Concept:
+        ◘ Track whether a session is “new” using a flag:
+        
+        window.newSession = true;
 
-computeStatsFromShots(latestShots)
-Stats include:
-Attempts
-Makes
-FG%
-Swishes
-Backboard makes/misses
-UI and table are now consistent ✅
-🧪 Simulation Mode
-Simulates ESP32 shot input
-Fixed logic:
-Swish → always made
-Backboard → can be make or miss
-Allows testing without hardware
-🔄 Reset Functionality
-Reset button:
-Clears user shots
-Clears stats
-Updates UI
-Saves cleared state to localStorage
-📄 Pagination (Design Implemented)
-Prepared pagination system:
-Page size concept (10 shots)
-Page navigation logic
-Ready to display:
-Page buttons
-Slice table data per page
-⚠️ Known Behavior / Limitations
-1. Session data reset issue (not fixed yet)
-When new ESP32 data arrives:
-Backend data overwrites local session shots
-Result:
-UI appears to “reset” after login when new data comes in
+Intended Behavior:
+        ◘ On login → mark new session
+        ◘ On first backend response → establish baseline
+        ◘ Prevent old backend data from being re-merged into stored history
+-------------------------------------------------------------
+🔧 Recent Code Changes
+1. Session Reset Logic
+        ◘ Reset backend tracking on login:
 
-👉 Cause:
+        previousBackendShots = [];
+        window.newSession = true;
 
-No merge strategy between backend shots and user-local shots
-2. Stats originally inconsistent (now fixed)
-Earlier mismatch between:
-Table data
-Stats display
-✔ Now resolved by computing stats from latestShots
-3. Rim detection not supported
-Hardware limitation:
-Cannot distinguish rim vs backboard reliably
-Decision:
-Rim category effectively removed from system
-4. Backend not fully authoritative
-Current system is frontend-driven:
-localStorage acts as database
-backend acts as data feeder (ESP32)
-No persistent backend user database yet
-🚧 What’s Still Missing (From Full Goal)
-🔁 1. Proper Data Sync / Merge Logic
-When ESP32 sends new shots:
-Should be appended to user’s stored shots
-Not overwrite them
+2. Session Flag Idea
+        ◘ Use a flag to detect first backend interaction after login
+        ◘ Prevent mixing old backend history with new session shots
+----------------------------------------------------------------
+📊 Stats System
+        ◘ Stats are computed dynamically using:
 
-👉 Needed for:
+        computeStatsFromShots(latestShots)
 
-Persistent user history
-Multi-session consistency
-🧠 2. True Backend Integration (Future Phase)
-Replace localStorage user system with:
-Backend database (e.g., Flask + DB)
-Benefits:
-Multi-device access
-Persistent storage
-Real authentication
-📡 3. ESP32 Live Integration
-Replace simulation with real device:
-Continuous shot streaming
-Real-time updates
-Ensure:
-Duplicate prevention
-Data consistency
-📄 4. Full Pagination UI
-Not fully implemented yet:
-Page buttons (Next / Prev / Page numbers)
-Page indicator (e.g., “Page 2 of 5”)
-Navigation controls
-🎯 5. Advanced Stats Enhancements (Optional)
-Currently supported:
-FG%
-Makes / attempts
-Basic shot breakdown
+        ◘ No longer relying on latestStats as a backend source
+        ◘ UI is driven directly from latestShots
+-------------------------------------------------------------
+📤 Export Feature
+CSV Export:
+        ◘ Exports shot table data
+JSON Export:
+        ◘Should export computed stats (not backend stats)
 
-Possible additions:
+⚠️ Note:
+Export previously relied on latestStats.basketball, which is no longer valid. It should be updated to use computed stats from latestShots.
+------------------------------------------------------------------
+🧪 Testing Setup
+        ◘ window.simulateShots = true enables fake shot generation
+        ◘ Simulated shots are added over time to mimic ESP32 input
+        ◘ Useful for testing UI and backend merging behavior
+-----------------------------------------------------------------
+📍 Files to Focus On
+static/js/auth.js
+        ◘ Authentication logic
+        ◘ Session handling
+        ◘ Local storage management
+        ◘ Login/logout flows
+static/js/stats.js
+        ◘ Backend polling (updateStats)
+        ◘ Shot merging logic
+        ◘ Stats computation
+        ◘ Table rendering
+        ◘ Export functions
+---------------------------------------------------------------
+🚧 Next Steps (Recommended)
 
-2PT vs 3PT (if shot metadata supports it)
-Shot streaks
-Heatmaps (later visualization)
-Time-based stats
-🔐 6. Better Session Handling
-Prevent backend updates from:
-Overwriting session state
-Need:
-Clear separation between:
-“user-owned data”
-“incoming device data”
-🧭 Current System State (Simple View)
-ESP32 (or simulation)
-        ↓
-Frontend receives shot data
-        ↓
-latestShots (source of truth)
-        ↓
-┌───────────────┬───────────────┐
-│ Shot Table    │ Stats (computed)│
-└───────────────┴───────────────┘
-        ↓
-Saved per user in localStorage
-✅ Where You Left Off
+For the next developer:
 
-You are currently at a working prototype stage, with:
+        1. Finalize session handling
+                ◘ Ensure backend shots do not merge incorrectly across sessions
+                ◘ Confirm newSession flag works as expected
+        2. Improve backend integration
+                ◘ Ideally backend should:
+                ◘ Return session-based data OR
+                ◘ Include timestamps/session IDs
+        3. Fix export JSON
+                ◘ Update export to use computed stats instead of outdated latestStats
+        4. (Optional) Refactor merging logic
+                ◘ Make backend → frontend data flow explicitly session-aware
+                ◘ Prevent duplicate merges
+----------------------------------------------------------------
+💡 Notes for Debugging
+        ◘ Use console logs inside updateStats() to inspect:
 
-Functional UI
-Data flow working
-Stats consistent
-Simulation working
-Authentication working
-Pagination concept ready
-
-👉 The only major unresolved issue is:
-data merge / session persistence when new backend data arrives
-
-If you come back later, the next step will likely be:
-
-👉 Fixing the merge logic between backend shots and user session data
-👉 Then finishing pagination UI
-👉 Then moving toward ESP32 integration / backend persistence
+        console.log("Backend shots:", backendShots);
+        console.log("Previous backend shots:", previousBackendShots);
+        console.log("Latest shots:", latestShots);
+        
+        ◘ Check how many shots are being merged and when
+--------------------------------------------------------------------
+✅ Summary
+        ◘ Authentication + local storage system is working
+        ◘ Backend polling and visualization are working
+        ◘ Main remaining challenge: clean session separation between logins
+        ◘ A session flag (window.newSession) was introduced as a solution direction
+        ◘ Export feature needs minor adjustment to align with computed stats

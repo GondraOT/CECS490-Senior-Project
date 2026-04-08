@@ -16,12 +16,25 @@ let latestStats = {};
 let previousBackendShots = [];
 
 // Code for testing wihtout esp32
-window.simulateShots = true;
+window.simulateShots = false;
 window.simulatedShotsAdded = 0;
+
+window.guestShots = [];
 
 // ── Helpers ────────────────────────────────────────────────────────
 function fmt(v, suffix = '') {
     return (v === null || v === undefined) ? '--' : v + suffix;
+}
+
+function resetSessionState() {
+    latestShots = [];
+    latestStats = {};
+    previousBackendShots = [];
+
+    window._simulatedShotBuffer = [];
+    window._lastSimTime = 0;
+
+    updateShotTable([]);
 }
 
 function getLastShotClass(type) {
@@ -73,44 +86,65 @@ async function updateStats() {
 
         let backendShots = b.shot_chart || [];
 
-        // ── Simulate Shots for Testing (comment to turn off) ─────────────────────────────
+        // ── Simulate Shots for Testing (time-based) (Comment if not using simulateShots) ─────────────────────────
+
+        if (!window.simulateShots) {
+            window._simulatedShotBuffer = [];
+        }
+
         if (window.simulateShots) {
-            if (backendShots.length === window.simulatedShotsAdded) {
+        
+            // Initialize timer
+            if (!window._lastSimTime) {
+                window._lastSimTime = Date.now();
+            }
+        
+            const now = Date.now();
+        
+            // Add a new shot every 1 second
+            if (now - window._lastSimTime > 1000) {
             
                 const isSwish = Math.random() > 0.75;
             
                 let newShot;
             
                 if (isSwish) {
-                    // ✅ Swish is always a make
                     newShot = {
                         made: true,
                         shot_type: 'Swish'
                     };
                 } else {
-                    // ✅ Backboard can be make or miss
                     const made = Math.random() > 0.5;
                 
                     newShot = {
                         made: made,
                         shot_type: made ? 'Backboard Make' : 'Backboard Miss'
                     };
+                    
+
+                    
                 }
             
-                // Store simulated shots separately
                 if (!window._simulatedShotBuffer) {
                     window._simulatedShotBuffer = [];
                 }
             
                 window._simulatedShotBuffer.push(newShot);
-                window.simulatedShotsAdded++;
+            
+                window._lastSimTime = now;
             
                 console.log("🧪 Simulated new shot:", newShot);
             }
         
             // Merge simulated shots into backend view
-            if (window._simulatedShotBuffer) {
+            if (window.simulateShots && window._simulatedShotBuffer?.length) {
                 backendShots = [...backendShots, ...window._simulatedShotBuffer];
+            }
+
+            // 👇 Store for guests
+            const user = getSession();
+            if (!user) {
+                window.guestShots = backendShots;
             }
         }
 
@@ -141,8 +175,7 @@ async function updateStats() {
                 previousBackendShots = backendShots;
             }
         } else {
-            // Guest mode → use backend directly
-            latestShots = backendShots;
+            latestShots = getSession() ? backendShots : window.guestShots || backendShots;
         }
 
         const computedStats = computeStatsFromShots(latestShots);
@@ -266,15 +299,16 @@ function computeStatsFromShots(shots) {
 }
 
 // ── Load User Session Data ─────────────────────────────────────────
-function loadUserSessionData(username) {
+function loadUserSessionData(email) {
     const data = getUserData(); // from auth.js
-    const userData = data[username];
+    const userData = data[email];
 
     if (!userData) {
-        console.log("No saved data for user:", username);
+        console.log("No saved data for user:", email);
 
         latestShots = [];
         updateShotTable([]);
+        previousBackendShots = [];
         return;
     }
 
@@ -288,6 +322,8 @@ function loadUserSessionData(username) {
 
     // (Optional future)
     // updateStatsUI(userData.stats);
+
+    previousBackendShots = [];
 }
 
 // ── Reset Data (for testing) ─────────────────────────────────────
