@@ -15,6 +15,10 @@ function getUsers() {
     return users ? JSON.parse(users) : {};
 }
 
+function saveUsers(users) {
+    localStorage.setItem("users", JSON.stringify(users));
+}
+
 function getSession() {
     return localStorage.getItem("session_user");
 }
@@ -25,6 +29,40 @@ function saveSession(username) {
 
 function clearSession() {
     localStorage.removeItem("session_user");
+}
+
+function getUserData() {
+    const data = localStorage.getItem("user_data");
+    return data ? JSON.parse(data) : {};
+}
+
+function saveUserData(data) {
+    localStorage.setItem("user_data", JSON.stringify(data));
+}
+
+function getCurrentUserData() {
+    const user = getSession();
+    if (!user) return null;
+
+    const data = getUserData();
+    return data[user] || null;
+}
+
+function setCurrentUserData(shots, stats) {
+    const user = getSession();
+    if (!user) return;
+
+    const data = getUserData();
+
+    data[user] = {
+        shots: shots || [],
+        stats: {
+        attempts: stats?.attempts ?? 0,
+        makes: stats?.makes ?? 0
+        }
+    };
+
+    saveUserData(data);
 }
 
 // =============================
@@ -75,7 +113,10 @@ function handleLogin() {
     const emailInput = document.getElementById("login-email");
     const passwordInput = document.getElementById("login-password");
 
-    if (!emailInput || !passwordInput) return;
+    if (!emailInput || !passwordInput) {
+        alert("Please enter email and password.");
+        return;
+    }
 
     const email = emailInput.value.trim();
     const password = passwordInput.value.trim();
@@ -90,6 +131,18 @@ function handleLogin() {
     saveSession(email);
     updateAuthUI();
     closeModal();
+
+    const allUserData = getUserData();
+
+    if (!allUserData[email]) {
+        allUserData[email] = {
+            shots: [],
+            stats: { attempts: 0, makes: 0 }
+        };
+        saveUserData(allUserData);
+    }
+
+    loadUserSessionData(email);
 }
 
 
@@ -128,7 +181,18 @@ function handleRegister() {
 
     users[email] = password;
 
-    localStorage.setItem("users", JSON.stringify(users));
+    // Also initialize user data
+    const allUserData = getUserData();
+
+    if (!allUserData[email]) {
+        allUserData[email] = {
+            shots: [],
+            stats: { attempts: 0, makes: 0 }
+        };
+    }
+
+    saveUsers(users);
+    saveUserData(allUserData);
 
     alert("Account created. You can now log in.");
 
@@ -190,7 +254,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Click outside modal closes it
     if (modal) {
-        modal.addEventListener("click", (e) => {
+        modal.addEventListener("mousedown", (e) => {
             if (e.target === modal) {
                 closeModal();
             }
@@ -200,4 +264,25 @@ document.addEventListener("DOMContentLoaded", () => {
     updateAuthUI();
 });
 
+document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+
+    const loginForm = document.getElementById("form-login");
+    const registerForm = document.getElementById("form-register");
+
+    const loginVisible = window.getComputedStyle(loginForm).display !== "none";
+    const registerVisible = window.getComputedStyle(registerForm).display !== "none";
+
+    if (loginVisible) {
+        handleLogin();
+    } else if (registerVisible) {
+        handleRegister();
+    }
+});
+
 window.clearAllAuthData = clearAllAuthData;
+window.getUserData = getUserData;
+window.saveUserData = saveUserData;
+window.getCurrentUserData = getCurrentUserData;
+window.setCurrentUserData = setCurrentUserData;
+window.getUsers = getUsers;

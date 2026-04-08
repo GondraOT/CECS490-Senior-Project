@@ -96,6 +96,17 @@
             color: var(--green);
             letter-spacing: 0.06em;
         }
+
+        .session-warning {
+            font-size: 0.7em;
+            color: var(--orange);
+            background: rgba(255, 140, 0, 0.08);
+            border: 1px solid rgba(255, 140, 0, 0.25);
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin: 10px 12px 0 12px;
+            letter-spacing: 0.04em;
+        }
         
         .table-body {
             padding: 12px;
@@ -114,16 +125,21 @@
         }
         
         .table-actions button {
-          padding: 6px 12px;
-          border: none;
-          border-radius: 6px;
-          background-color: #4CAF50;
-          color: white;
-          cursor: pointer;
+            font-family: var(--mono);
+            font-size: 0.7em;
+            letter-spacing: 0.06em;
+            padding: 6px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            background: none;
+            color: var(--text-dim);
+            border: 1px solid var(--green-border);
+            transition: all 0.2s;
         }
-        
+
         .table-actions button:hover {
-          background-color: #45a049;
+            color: var(--green);
+            border-color: var(--green-dim);
         }
         
         #shot-table {
@@ -131,22 +147,44 @@
             border-collapse: collapse;
             font-size: 0.75em;
             text-align: center;
+            font-family: var(--mono);
         }
         
         #shot-table th {
-            color: var(--text-dim);
-            font-weight: 600;
-            padding: 8px;
+            color: var(--green);
+            font-size: 1em;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 10px 8px;
             border-bottom: 1px solid var(--green-border);
         }
         
         #shot-table td {
-            padding: 8px;
+            color: var(--text);
+            font-size: 0.9em;
+            padding: 10px 8px;
             border-bottom: 1px solid rgba(0,255,136,0.08);
+        }
+
+        #shot-table td.make {
+            color: var(--green);
+        }
+
+        #shot-table td.miss {
+            color: var(--red);
+        }
+
+        #shot-table td.swish {
+            color: var(--green);
+        }
+
+        #shot-table tr:nth-child(even) td {
+            background: rgba(0,255,136,0.02);
         }
         
         #shot-table tr:hover {
-            background: rgba(0,255,136,0.05);
+            background: rgba(0,255,136,0.08);
+            transition: background 0.2s ease;
         }
 
         /* ── Section label ── */
@@ -166,7 +204,7 @@
         .stat-card .val.pct { font-size:1.4em; }
         .stat-card .val.dim { color:var(--text-dim); }
         .stat-card .val.orange { color:var(--orange); }
-        .stat-card .val.cyan { color:var(--cyan); font-size:1em; }
+        .stat-card .val.cyan { color:var(--cyan); font-size:1.4em; }
         .stat-card .val.small { font-size:1.1em; }
 
         /* ── Bottom section ── */

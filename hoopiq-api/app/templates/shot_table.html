@@ -10,12 +10,16 @@
 
 <div class="table-card">
     <div class="table-header">
-        <span class="table-title">SHOT LOG</span>
+        <div class="table-title">SHOT LOG</div>
+
+        <div class="table-actions">
+          <button id="export-csv-btn">Export Table</button>
+          <button id="export-json-btn">Export Stats</button>
+        </div>
     </div>
 
-    <div class="table-actions">
-      <button id="export-csv-btn">Export Table</button>
-      <button id="export-json-btn">Export Stats</button>
+    <div class="session-warning">
+        ⚠️ Warning: Taking a new shot with the system active will reset current data and start a new session.
     </div>
 
     <div class="table-body">
