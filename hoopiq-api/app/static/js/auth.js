@@ -123,7 +123,7 @@ function handleLogin() {
 
     const users = getUsers();
 
-    if (!users[email] || users[email] !== password) {
+    if (!users[email] || users[email].password !== password) {
         alert("Invalid email or password.");
         return;
     }
@@ -174,6 +174,7 @@ function handleRegister() {
     const email = emailInput.value.trim();
     const password = passwordInput.value.trim();
     const confirm = confirmInput.value.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!name || !email || !password || !confirm) {
         alert("Please fill out all fields.");
@@ -185,6 +186,16 @@ function handleRegister() {
         return;
     }
 
+    if (!email.includes("@")) {
+        alert("Please enter a valid email (must include @).");
+        return;
+    }
+
+        if (password.length < 4) {
+        alert("Password must be at least 4 characters.");
+        return;
+    }
+
     const users = getUsers();
 
     if (users[email]) {
@@ -192,7 +203,10 @@ function handleRegister() {
         return;
     }
 
-    users[email] = password;
+    users[email] = {
+        password: password, 
+        name: name
+    };
 
     // Also initialize user data
     const allUserData = getUserData();
@@ -243,6 +257,7 @@ function handleLogout() {
 // =============================
 function updateAuthUI() {
     const user = getSession();
+    const users = getUsers();
 
     const authButtons = document.getElementById("auth-buttons");
     const userInfo = document.getElementById("user-info");
@@ -254,7 +269,7 @@ function updateAuthUI() {
         // Show logged-in UI
         authButtons.style.display = "none";
         userInfo.style.display = "flex";
-        userGreeting.textContent = user;
+        userGreeting.textContent = users[user]?.name || user;
     } else {
         // Show guest UI
         authButtons.style.display = "flex";
@@ -271,6 +286,14 @@ function clearAllAuthData() {
     localStorage.removeItem("session_user");
     localStorage.removeItem("user_data");
     console.log("Auth data cleared.");
+}
+
+function showWarning(id, message) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.textContent = message;
+        el.style.display = "block";
+    }
 }
 
 document.addEventListener("DOMContentLoaded", () => {

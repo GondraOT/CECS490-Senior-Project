@@ -10,18 +10,24 @@
 // ── Constants ───────────────────────────────────────────────────────
 const CLOUD = 'https://cecs490-senior-project.onrender.com';
 
-// ── Export State ────────────────────────────────────────────────
+// ── Export State ───────────────────────────────
 let latestShots = [];
 let latestStats = {};
 let previousBackendShots = [];
 
-// Code for testing wihtout esp32
+// Simulation
 window.simulateShots = false;
 window.simulatedShotsAdded = 0;
-
 window.guestShots = [];
-
 window.newSession = true;
+
+// Pagination
+let currentPage = 1;
+const shotsPerPage = 10;
+
+// 🔥 render lock (prevents UI overwrite bugs)
+let isRendering = false;
+let shotsToRender = [];
 
 // ── Helpers ────────────────────────────────────────────────────────
 function fmt(v, suffix = '') {
@@ -87,6 +93,8 @@ async function updateStats() {
         const h = d.heatmap || {};
 
         let backendShots = b.shot_chart || [];
+
+        let shotsToRender = [];
 
         if (window.newSession) {
             console.log("🟡 Waiting for first new shot...");
@@ -162,6 +170,8 @@ async function updateStats() {
             const user = getSession();
             if (!user) {
                 window.guestShots = backendShots;
+                latestShots = window.guestShots;
+            
             }
         }
 
@@ -171,38 +181,47 @@ async function updateStats() {
         if (user) {
             const data = getUserData();
             const userData = data[user];
-
-            if (userData) {
-                const storedShots = userData.shots || [];
-
-                // Detect new backend shots
+        
+            if (!userData) {
+                shotsToRender = [];
+            } else {
+            
                 if (backendShots.length > previousBackendShots.length) {
                     const newShots = backendShots.slice(previousBackendShots.length);
-
-                    console.log("New shots detected:", newShots);
-
-                    // 🟢 FIRST SHOT AFTER LOGIN → RESET HERE
+                
                     if (window.newSession) {
-                        console.log("🔥 First new shot — resetting session data");
-                    
-                        data[user].shots = [];   // clear old session
+                        data[user].shots = [];
                         window.newSession = false;
                     }
                 
-                    // Now add new shots normally
-                    data[user].shots = [...data[user].shots, ...newShots];
+                    data[user].shots = [...(data[user].shots || []), ...newShots];
+                
                     saveUserData(data);
+                
+                    const totalShots = data[user].shots.length;
+                    const totalPages = Math.ceil(totalShots / shotsPerPage);
+                
+                    currentPage = totalPages; // auto jump to latest page
+                    updateShotTable(data[user].shots);
                 }
-
-                // Always render from merged local history
-                latestShots = data[user].shots || [];
-
-                previousBackendShots = backendShots;
+            
+                shotsToRender = [...(data[user].shots || [])];
             }
+        
+            previousBackendShots = backendShots;
+        
         } else {
-            latestShots = getSession() ? backendShots : window.guestShots || backendShots;
+            if (!window.guestShots) window.guestShots = [];
+        
+            if (backendShots.length > window.guestShots.length) {
+                const newShots = backendShots.slice(window.guestShots.length);
+                window.guestShots = [...window.guestShots, ...newShots];
+            }
+        
+            shotsToRender = [...window.guestShots];
         }
 
+        latestShots = shotsToRender;
         const computedStats = computeStatsFromShots(latestShots);
 
         latestStats = {};
@@ -213,7 +232,6 @@ async function updateStats() {
         setText('fg-pct', computedStats.fg_percent ? computedStats.fg_percent + '%' : '--');
 
         setText('swishes', fmt(computedStats.swishes));
-        setText('rim', fmt(computedStats.rim_hits));
         setText('backboard', fmt(computedStats.backboard_hits));
 
         // Breakdown
@@ -244,7 +262,8 @@ async function updateStats() {
         if (typeof updateArcTrend === 'function') updateArcTrend(b.avg_arc, b.avg_entry_angle);
 
         // ── Table ─────────────────────────────────────
-        updateShotTable(latestShots);
+        latestShots = shotsToRender;
+        renderAll(latestShots);
 
     } catch (err) {
         console.error('Stats update error:', err);
@@ -263,19 +282,24 @@ function updateShotTable(shots) {
 
     tbody.innerHTML = '';
 
-    shots.forEach((shot, index) => {
+    const start = (currentPage - 1) * shotsPerPage;
+    const end = start + shotsPerPage;
+
+    const pageShots = shots.slice(start, end);
+
+    pageShots.forEach((shot, index) => {
         const row = document.createElement('tr');
 
         const result = shot.made ? '✔ Make' : '✖ Miss';
-        const swish = shot.shot_type === 'Swish' ? '✔ Swish' : '✖ Miss';
-        const backboard = shot.shot_type.includes('Backboard') ? '✔ Hit' : '✖ Miss';
-            
+        const swish = (shot.shot_type || '') === 'Swish' ? '✔ Swish' : '✖ Miss';
+        const backboard = (shot.shot_type || '').includes('Backboard') ? '✔ Hit' : '✖ Miss';
+
         const resultClass = shot.made ? 'make' : 'miss';
-        const swishClass = shot.shot_type === 'Swish' ? 'swish' : 'miss';
-        const backboardClass = shot.shot_type.includes('Backboard') ? 'make' : 'miss';
-            
+        const swishClass = (shot.shot_type || '') === 'Swish' ? 'swish' : 'miss';
+        const backboardClass = (shot.shot_type || '').includes('Backboard') ? 'make' : 'miss';
+
         row.innerHTML = `
-            <td>${index + 1}</td>
+            <td>${start + index + 1}</td>
             <td class="${backboardClass}">${backboard}</td>
             <td class="${swishClass}">${swish}</td>
             <td class="${resultClass}">${result}</td>
@@ -283,6 +307,24 @@ function updateShotTable(shots) {
 
         tbody.appendChild(row);
     });
+
+    // Fill remaining rows to always show 10
+    for (let i = pageShots.length; i < shotsPerPage; i++) {
+        const row = document.createElement('tr');
+    
+        row.innerHTML = `
+            <td>${start + i + 1}</td>
+            <td>—</td>
+            <td>—</td>
+            <td>—</td>
+        `;
+    
+        tbody.appendChild(row);
+    }
+
+    updatePaginationControls(shots.length);
+    renderPageNumbers(shots.length);
+    currentPage = Math.max(1, currentPage);
 }
 
 // ── Compute Stats from Shots (for local storage) ─────────────────
@@ -294,25 +336,20 @@ function computeStatsFromShots(shots) {
         backboard_hits: 0,
         backboard_makes: 0,
         backboard_misses: 0,
-        rim_hits: 0
     };
 
     shots.forEach(shot => {
         if (shot.made) stats.makes++;
 
-        if (shot.shot_type === 'Swish') {
+        if ((shot.shot_type || '') === 'Swish') {
             stats.swishes++;
         }
 
-        if (shot.shot_type.includes('Backboard')) {
+        if ((shot.shot_type || '').includes('Backboard')) {
             stats.backboard_hits++;
 
             if (shot.made) stats.backboard_makes++;
             else stats.backboard_misses++;
-        }
-
-        if (shot.shot_type === 'Rim Hit') {
-            stats.rim_hits++;
         }
     });
 
@@ -343,12 +380,47 @@ function loadUserSessionData(email) {
     latestShots = userData.shots || [];
 
     // Render table
-    updateShotTable(latestShots);
+    renderAll(shotsToRender);
 
     // (Optional future)
     // updateStatsUI(userData.stats);
 
     previousBackendShots = [];
+}
+
+function updatePaginationControls(totalShots) {
+    const totalPages = Math.ceil(totalShots / shotsPerPage);
+
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+
+    if (prevBtn) prevBtn.disabled = currentPage === 1;
+    if (nextBtn) nextBtn.disabled = currentPage === totalPages;
+}
+
+function renderPageNumbers(totalShots) {
+    const container = document.getElementById('page-numbers');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    const totalPages = Math.ceil(totalShots / shotsPerPage);
+
+    for (let i = 1; i <= totalPages; i++) {
+        const btn = document.createElement('button');
+        btn.textContent = i;
+
+        if (i === currentPage) {
+            btn.classList.add('active-page');
+        }
+
+        btn.addEventListener('click', () => {
+            currentPage = i;
+            updateShotTable(latestShots);
+        });
+
+        container.appendChild(btn);
+    }
 }
 
 // ── Reset Data (for testing) ─────────────────────────────────────
@@ -376,13 +448,29 @@ function resetAllData() {
     setText('makes', '--');
     setText('fg-pct', '--');
     setText('swishes', '--');
-    setText('rim', '--');
     setText('backboard', '--');
     setText('swish-makes', '--');
     setText('backboard-makes', '--');
     setText('backboard-misses', '--');
 
     console.log("✅ Reset complete");
+}
+
+function renderAll(shots) {
+    if (isRendering) return;
+    isRendering = true;
+
+    try {
+        if (!Array.isArray(shots)) shots = [];
+
+        updateShotTable(shots);
+
+        if (typeof drawShotChart === 'function') drawShotChart(latestShots);
+        if (typeof updateZones === 'function') updateZones(latestShots);
+
+    } finally {
+        isRendering = false;
+    }
 }
 
 // ── Export Functions ─────────────────────────────────────────────
@@ -396,8 +484,8 @@ function exportCSV() {
 
     const rows = latestShots.map((shot, i) => [
         i + 1,
-        shot.shot_type.includes('Backboard') ? 'Hit' : 'Miss',
-        shot.shot_type === 'Swish' ? 'Swish' : 'Miss',
+        (shot.shot_type || '').includes('Backboard') ? 'Hit' : 'Miss',
+        (shot.shot_type || '') === 'Swish' ? 'Swish' : 'Miss',
         shot.made ? 'Make' : 'Miss'
     ]);
 
@@ -439,6 +527,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const user = getSession();
     if (user) {
         loadUserSessionData(user);
+    }
+});
+
+document.getElementById('prev-btn')?.addEventListener('click', () => {
+    if (currentPage > 1) {
+        currentPage--;
+        updateShotTable(latestShots);
+    }
+});
+
+document.getElementById('next-btn')?.addEventListener('click', () => {
+    const totalPages = Math.ceil(latestShots.length / shotsPerPage);
+    if (currentPage < totalPages) {
+        currentPage++;
+        updateShotTable(latestShots);
     }
 });
 

@@ -187,11 +187,36 @@
             transition: background 0.2s ease;
         }
 
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        .page-numbers button {
+            padding: 5px 10px;
+            border: 1px solid #ccc;
+            background: #1e1e1e;
+            color: white;
+            cursor: pointer;
+        }
+        
+        .page-numbers button.active-page {
+            background: #4CAF50;
+            font-weight: bold;
+        }
+        
+        .page-numbers button:hover {
+            background: #333;
+        }
+
         /* ── Section label ── */
         .section-label { font-size:0.65em; color:var(--text-dim); letter-spacing:0.12em; text-transform:uppercase; margin-bottom:10px; padding-left:2px; }
 
-        /* ── Row 1: Primary Shot Stats (9 cards) ── */
-        .row1 { display:grid; grid-template-columns:repeat(8,1fr); gap:10px; margin-bottom:10px; }
+        /* ── Row 1: Primary Shot Stats (7 cards) ── */
+        .row1 { display:grid; grid-template-columns:repeat(7,1fr); gap:10px; margin-bottom:10px; }
 
         /* ── Row 2: Shot Type breakdown ── */
        .row2 { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:10px; }

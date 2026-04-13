@@ -43,6 +43,3 @@ Console commands:
 enable/disable simulation:
         simulateShots = true    => Starts fake shots every second
         simulateShots = false   => Stops simulation
-
-try to add a scroll or page table of max 10 shots per page
-implement proper email and password, along with username instead of email top left
