@@ -21,6 +21,8 @@ window.simulatedShotsAdded = 0;
 
 window.guestShots = [];
 
+window.newSession = true;
+
 // ── Helpers ────────────────────────────────────────────────────────
 function fmt(v, suffix = '') {
     return (v === null || v === undefined) ? '--' : v + suffix;
@@ -86,12 +88,20 @@ async function updateStats() {
 
         let backendShots = b.shot_chart || [];
 
-        // ── Simulate Shots for Testing (time-based) (Comment if not using simulateShots) ─────────────────────────
+        if (window.newSession) {
+            console.log("🟡 Waiting for first new shot...");
+                
+            // Just establish baseline — DO NOT CLEAR
+            if (previousBackendShots.length === 0) {
+                previousBackendShots = backendShots;
+            }
+        }
 
+        // ── Simulate Shots for Testing (time-based) (Comment if not using simulateShots) ─────────────────────────
         if (!window.simulateShots) {
             window._simulatedShotBuffer = [];
         }
-
+        
         if (window.simulateShots) {
         
             // Initialize timer
@@ -104,25 +114,32 @@ async function updateStats() {
             // Add a new shot every 1 second
             if (now - window._lastSimTime > 1000) {
             
-                const isSwish = Math.random() > 0.75;
+                const rand = Math.random(); // 👈 single random value
             
                 let newShot;
             
-                if (isSwish) {
+                if (rand > 0.75) {
+                    // 🟢 Swish (25%)
                     newShot = {
                         made: true,
                         shot_type: 'Swish'
                     };
-                } else {
+                
+                } else if (rand > 0.40) {
+                    // 🟡 Backboard (35%)
                     const made = Math.random() > 0.5;
                 
                     newShot = {
                         made: made,
                         shot_type: made ? 'Backboard Make' : 'Backboard Miss'
                     };
-                    
-
-                    
+                
+                } else {
+                    // 🔴 Airball (40%)
+                    newShot = {
+                        made: false,
+                        shot_type: 'Airball'
+                    };
                 }
             
                 if (!window._simulatedShotBuffer) {
@@ -140,7 +157,7 @@ async function updateStats() {
             if (window.simulateShots && window._simulatedShotBuffer?.length) {
                 backendShots = [...backendShots, ...window._simulatedShotBuffer];
             }
-
+        
             // 👇 Store for guests
             const user = getSession();
             if (!user) {
@@ -164,8 +181,16 @@ async function updateStats() {
 
                     console.log("New shots detected:", newShots);
 
-                    // Merge into user storage
-                    data[user].shots = [...storedShots, ...newShots];
+                    // 🟢 FIRST SHOT AFTER LOGIN → RESET HERE
+                    if (window.newSession) {
+                        console.log("🔥 First new shot — resetting session data");
+                    
+                        data[user].shots = [];   // clear old session
+                        window.newSession = false;
+                    }
+                
+                    // Now add new shots normally
+                    data[user].shots = [...data[user].shots, ...newShots];
                     saveUserData(data);
                 }
 
@@ -384,12 +409,14 @@ function exportCSV() {
 }
 
 function exportStatsJSON() {
-    if (!latestStats || !latestStats.basketball) {
+    const stats = computeStatsFromShots(latestShots);
+
+    if (!stats) {
         alert('No stats available.');
         return;
     }
 
-    const json = JSON.stringify(latestStats, null, 2);
+    const json = JSON.stringify(stats, null, 2);
     downloadFile(json, 'stats.json', 'application/json');
 }
 

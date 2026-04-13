@@ -155,6 +155,7 @@ function handleLogin() {
 
     // ✅ Load fresh session data AFTER reset
     loadUserSessionData(email);
+    window.newSession = true;
 }
 
 
