@@ -132,8 +132,8 @@ async function updateStats() {
                         shot_type: 'Swish'
                     };
                 
-                } else if (rand > 0.25) {
-                    const made = Math.random() > 0.5;
+                } else if (rand > 0.15) {
+                    const made = Math.random() > 0.25;
                 
                     newShot = {
                         made: made,
@@ -236,12 +236,8 @@ async function updateStats() {
         setText('backboard-makes', fmt(computedStats.backboard_makes));
         setText('backboard-misses', fmt(computedStats.backboard_misses));
 
-        const lastShot = b.last_shot_type || '—';
-        const lastShotEl = document.getElementById('last-shot-type');
-        if (lastShotEl) {
-            lastShotEl.textContent = lastShot;
-            lastShotEl.className = 'val small ' + getLastShotClass(lastShot);
-        }
+        const airballs = computedStats.airballs;
+        setText('airballs', fmt(airballs));
 
         setText('players', fmt(h.current_players));
         setText('avg-arc', b.avg_arc != null ? b.avg_arc + '°' : '--');
@@ -333,6 +329,7 @@ function computeStatsFromShots(shots) {
         backboard_hits: 0,
         backboard_makes: 0,
         backboard_misses: 0,
+        airballs: 0
     };
 
     shots.forEach(shot => {
@@ -347,6 +344,10 @@ function computeStatsFromShots(shots) {
 
             if (shot.made) stats.backboard_makes++;
             else stats.backboard_misses++;
+        }
+        
+        if ((shot.shot_type || '') === 'Airball') {
+            stats.airballs++;
         }
     });
 
