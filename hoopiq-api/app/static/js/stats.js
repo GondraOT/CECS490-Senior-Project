@@ -127,14 +127,12 @@ async function updateStats() {
                 let newShot;
             
                 if (rand > 0.75) {
-                    // 🟢 Swish (25%)
                     newShot = {
                         made: true,
                         shot_type: 'Swish'
                     };
                 
-                } else if (rand > 0.40) {
-                    // 🟡 Backboard (35%)
+                } else if (rand > 0.25) {
                     const made = Math.random() > 0.5;
                 
                     newShot = {
@@ -143,7 +141,6 @@ async function updateStats() {
                     };
                 
                 } else {
-                    // 🔴 Airball (40%)
                     newShot = {
                         made: false,
                         shot_type: 'Airball'
