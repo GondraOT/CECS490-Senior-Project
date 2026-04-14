@@ -32,13 +32,13 @@ latest_data = {
 }
 
 def update(new_data: dict):
-    """
-    Safely update the shared latest_data dictionary.
-    Only updates keys that exist in latest_data.
-    Automatically updates 'last_update' timestamp.
-    """
     for key, value in new_data.items():
-        if key in latest_data:
+        if key == "shot_chart":
+            # Only append shots we haven't seen yet based on timestamp
+            existing_timestamps = {s["timestamp"] for s in latest_data["shot_chart"]}
+            new_shots = [s for s in value if s["timestamp"] not in existing_timestamps]
+            latest_data["shot_chart"].extend(new_shots)
+        elif key in latest_data:
             latest_data[key] = value
     latest_data['last_update'] = time.time()
 
