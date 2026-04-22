@@ -283,13 +283,14 @@ function updateShotTable(shots) {
     pageShots.forEach((shot, index) => {
         const row = document.createElement('tr');
 
-        const result = shot.made ? '✔ Make' : '✖ Miss';
-        const swish = (shot.shot_type || '') === 'Swish' ? '✔ Swish' : '✖ Miss';
-        const backboard = (shot.shot_type || '').includes('Backboard') ? '✔ Hit' : '✖ Miss';
-
-        const resultClass = shot.made ? 'make' : 'miss';
-        const swishClass = (shot.shot_type || '') === 'Swish' ? 'swish' : 'miss';
-        const backboardClass = (shot.shot_type || '').includes('Backboard') ? 'make' : 'miss';
+        const type = shot.shot_type || '';
+        const result    = shot.made ? '✔ Make' : '✖ Miss';
+        const swish     = type === 'Swish' ? '✔ Swish' : '✖ Miss';
+        const backboard = (type.includes('Backboard') || type === 'Make' || type === 'Rim/Board Make') ? '✔ Hit' : '✖ Miss';
+      
+        const resultClass    = shot.made ? 'make' : 'miss';
+        const swishClass     = type === 'Swish' ? 'swish' : 'miss';
+        const backboardClass = (type.includes('Backboard') || type === 'Make' || type === 'Rim/Board Make') ? 'make' : 'miss';
 
         row.innerHTML = `
             <td>${start + index + 1}</td>
