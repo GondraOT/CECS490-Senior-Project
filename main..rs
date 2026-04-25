@@ -2,8 +2,8 @@
 // Team 2
 // Christopher Hong, Gondra Kelly, Matthew "god" Marguiles, Alfonso Mejia Vasquez, Carlos Orozco
 // C922x: single camera → two streams via v4l2loopback
-//   heatmap  → Rust OpenCV detection overlay → RTSP → MediaMTX
-//   basketball → raw BRIO frames via loopback → FFmpeg → RTSP → MediaMTX
+//   heatmap  → Rust OpenCV ball detection overlay → RTSP → MediaMTX
+//   basketball → raw frames via loopback → FFmpeg → RTSP → MediaMTX
 
 use base64::{engine::general_purpose, Engine as _};
 use opencv::{
@@ -14,24 +14,62 @@ use opencv::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Write};
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-// ── Tuning constants ──────────────────────────────────────────────────
-const HEATMAP_DETECT_EVERY_N_FRAMES: u64 = 3;
-const JPEG_QUALITY_HEATMAP: i32 = 70;
-const BG_HISTORY_FRAMES: i32 = 500;
-const BG_VARIANCE_THRESHOLD: f64 = 16.0;
-const MIN_CONTOUR_AREA: f64 = 50.0;
-const MAX_CONTOUR_AREA: f64 = 15000.0;
-const MIN_ASPECT_RATIO: f32 = 0.8;
-const MAX_ASPECT_RATIO: f32 = 3.5;
-const HEATMAP_GRID_SIZE: i32 = 30;
-const HEATMAP_CIRCLE_RADIUS: i32 = 45;
-const HEATMAP_OPACITY: f64 = 0.5;
+// ── Camera / frame tuning ─────────────────────────────────────────────
+const HEATMAP_DETECT_EVERY_N_FRAMES: u64 = 2;
+const JPEG_QUALITY_HEATMAP: i32 = 65;
+
+// ── Ball HSV color range (tune at your venue) ─────────────────────────
+const BALL_H_MIN: f64 = 8.0;
+const BALL_H_MAX: f64 = 25.0;
+const BALL_S_MIN: f64 = 90.0;
+const BALL_S_MAX: f64 = 255.0;
+const BALL_V_MIN: f64 = 50.0;
+const BALL_V_MAX: f64 = 230.0;
+const BALL_MIN_RADIUS_PX: i32 = 8;
+const BALL_MAX_RADIUS_PX: i32 = 250;
+const BALL_LOST_TIMEOUT_MS: u64 = 3000;
+
+// ── Ball tracker reliability ──────────────────────────────────────────
+const BALL_LOCK_CONFIRM_FRAMES: u32 = 1;
+const BALL_ROI_RADIUS_PX: i32 = 400;
+const BALL_MAX_SIZE_CHANGE_PCT: f32 = 0.70;
+const BALL_MIN_CIRCULARITY: f64 = 0.40;
+const BALL_MAX_ASPECT_DEVIATION: f32 = 0.50;
+
+// ── Monocular depth estimation ────────────────────────────────────────
+// A basketball has a fixed real-world diameter of 9.4 inches.
+// We use this known size to estimate distance from the camera.
+//
+// Formula: distance = (real_diameter × focal_length) / pixel_diameter
+//
+// ONE-TIME CALIBRATION:
+//   1. Hold ball exactly CALIB_DISTANCE_INCHES (36in = 3ft) from camera lens
+//   2. Run: ffmpeg -f v4l2 -i /dev/video0 -frames:v 1 /tmp/calib.jpg
+//   3. Open calib.jpg, measure ball diameter in pixels (left edge to right edge)
+//   4. Update CALIB_PIXEL_DIAMETER with that measurement
+//   5. Rebuild — works in any environment from then on
+const BALL_REAL_DIAMETER_INCHES: f64 = 9.4;
+const CALIB_DISTANCE_INCHES: f64 = 36.0; // 3 feet — hold ball here during calib
+const CALIB_PIXEL_DIAMETER: f64 = 124.0; // ← UPDATE AFTER CALIBRATION
+
+// ── Shot zone threshold ───────────────────────────────────────────────
+// 3PT line is 23.75ft = 285 inches from basket in NBA.
+// Camera is placed near basket, so distance from camera ≈ distance from basket.
+const THREE_PT_DISTANCE_INCHES: f64 = 333.0;
+
+// ── Airball / shot release detection ─────────────────────────────────
+const SHOT_RELEASE_VEL_Y: f32 = -220.0; // px/s upward to count as release
+const SHOT_RELEASE_VEL_X_MAX: f32 = 300.0; // cap lateral speed (not a pass)
+const AIRBALL_WAIT_MS: u64 = 5000; // 5 second window for ESP32 response
+const AIRBALL_COOLDOWN_MS: u64 = 4000; // min gap between airball calls
+
+// ── Structs ───────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct PlayerDetection {
@@ -53,6 +91,40 @@ struct ShotEntry {
     timestamp: u64,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct ShotDot {
+    px: i32,
+    py: i32,
+    dist_ft: f64,
+    is_three: bool,
+    made: bool,
+    shot_type: String,
+    timestamp: u64,
+}
+
+#[derive(Clone, Debug)]
+struct BallPosition {
+    px: i32,
+    py: i32,
+    radius: i32,
+    last_seen_ms: u64,
+    distance_inches: f64,
+    distance_ft: f64,
+    is_three: bool,
+    vel_x: f32,        // pixels/second, positive = right
+    vel_y: f32,        // pixels/second, negative = moving up in frame
+    smooth_vel_y: f32, // ← ADD: averaged over last N frames
+}
+
+#[derive(Clone, Debug, Default)]
+struct BallCandidate {
+    px: i32,
+    py: i32,
+    radius: i32,
+    confirm_count: u32,
+    vel_y_history: Vec<f32>, // ← ADD: rolling velocity buffer
+}
+
 struct FrameStore {
     heatmap: RwLock<Vec<u8>>,
 }
@@ -65,20 +137,30 @@ impl FrameStore {
     }
 }
 
+// ── GameState ─────────────────────────────────────────────────────────
+
 struct GameState {
     heatmap_frame_count: u64,
     heatmap_fps: f32,
     current_players: Vec<PlayerDetection>,
-    heatmap_data: HashMap<(i32, i32), u32>,
+    ball_position: Option<BallPosition>,
+    shot_dots: Vec<ShotDot>,
     make_count: u64,
     backboard_count: u32,
     rim_count: u32,
     swish_count: u32,
+    two_pt_makes: u32,
+    two_pt_attempts: u32,
+    three_pt_makes: u32,
+    three_pt_attempts: u32,
     backboard_make_count: u32,
     backboard_miss_count: u32,
     total_players_detected: u64,
     shot_chart: Vec<ShotEntry>,
     last_shot_type: String,
+    pending_zone: Option<bool>,
+    airball_count: u32,
+    last_serial_event_ms: u64,
 }
 
 impl GameState {
@@ -87,76 +169,102 @@ impl GameState {
             heatmap_frame_count: 0,
             heatmap_fps: 0.0,
             current_players: Vec::new(),
-            heatmap_data: HashMap::new(),
+            ball_position: None,
+            shot_dots: Vec::new(),
             make_count: 0,
             backboard_count: 0,
             rim_count: 0,
             swish_count: 0,
             backboard_make_count: 0,
             backboard_miss_count: 0,
+            two_pt_makes: 0,
+            two_pt_attempts: 0,
+            three_pt_makes: 0,
+            three_pt_attempts: 0,
             total_players_detected: 0,
             shot_chart: Vec::new(),
             last_shot_type: "—".to_string(),
+            pending_zone: None,
+            airball_count: 0,
+            last_serial_event_ms: 0,
         }
     }
 
-    fn record_shot(
+    fn record_shot(&mut self, made: bool, shot_type: &str, frame_width: i32, frame_height: i32) {
+        self.record_shot_with_zone(made, shot_type, frame_width, frame_height, None);
+    }
+
+    fn record_shot_with_zone(
         &mut self,
-        players: &[PlayerDetection],
         made: bool,
         shot_type: &str,
         frame_width: i32,
         frame_height: i32,
+        zone_override: Option<bool>,
     ) {
-        if let Some(player) = players.first() {
-            let x = (player.x as f32 / frame_width as f32 * 100.0).clamp(0.0, 100.0);
-            let y = (player.y as f32 / frame_height as f32 * 100.0).clamp(0.0, 100.0);
-            // 5-zone court classification (x/y are 0-100% of frame)
-            let zone = if x < 20.0 && y > 40.0 {
-                "Left Corner 3"
-            } else if x > 80.0 && y > 40.0 {
-                "Right Corner 3"
-            } else if y < 30.0 || x < 15.0 || x > 85.0 {
-                "Above Break 3"
-            } else if y > 60.0 && x > 30.0 && x < 70.0 {
-                "Paint"
-            } else {
-                "Mid-Range"
+        let (px, py, distance_ft, is_three) = if let Some(ref ball) = self.ball_position {
+            (
+                ball.px,
+                ball.py,
+                ball.distance_ft,
+                zone_override.unwrap_or(ball.is_three),
+            )
+        } else {
+            (frame_width / 2, frame_height / 2, 15.0, false)
+        };
+
+        if is_three {
+            self.three_pt_attempts += 1;
+            if made {
+                self.three_pt_makes += 1;
             }
-            .to_string();
-            self.shot_chart.push(ShotEntry {
-                x,
-                y,
-                made,
-                zone,
-                shot_type: shot_type.to_string(),
-                timestamp: SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_millis() as u64,
-            });
-            if self.shot_chart.len() > 500 {
-                self.shot_chart.remove(0);
+        } else {
+            self.two_pt_attempts += 1;
+            if made {
+                self.two_pt_makes += 1;
             }
         }
+
+        self.shot_dots.push(ShotDot {
+            px,
+            py,
+            dist_ft: distance_ft,
+            is_three,
+            made,
+            shot_type: shot_type.to_string(),
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis() as u64,
+        });
+        if self.shot_dots.len() > 500 {
+            self.shot_dots.remove(0);
+        }
+
+        let zone = if is_three { "3PT" } else { "2PT" }.to_string();
+        let x = (px as f32 / frame_width as f32 * 100.0).clamp(0.0, 100.0);
+        let y = (py as f32 / frame_height as f32 * 100.0).clamp(0.0, 100.0);
+
+        self.shot_chart.push(ShotEntry {
+            x,
+            y,
+            made,
+            zone,
+            shot_type: shot_type.to_string(),
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis() as u64,
+        });
+        if self.shot_chart.len() > 500 {
+            self.shot_chart.remove(0);
+        }
+
         self.last_shot_type = shot_type.to_string();
     }
 
-    fn update_heatmap(&mut self, players: &[PlayerDetection]) {
-        for player in players {
-            let key = (
-                (player.x / HEATMAP_GRID_SIZE) * HEATMAP_GRID_SIZE,
-                (player.y / HEATMAP_GRID_SIZE) * HEATMAP_GRID_SIZE,
-            );
-            *self.heatmap_data.entry(key).or_insert(0) += 1;
-        }
-        if self.heatmap_data.len() > 1000 {
-            self.heatmap_data.retain(|_, &mut v| v >= 5);
-        }
-    }
-
     fn attempts(&self) -> u64 {
-        self.make_count + self.backboard_miss_count as u64 + self.rim_count as u64
+        self.make_count + self.backboard_miss_count as u64 + self.airball_count as u64
     }
 
     fn fg_percent(&self) -> Option<f32> {
@@ -167,7 +275,9 @@ impl GameState {
             Some(self.make_count as f32 / a as f32 * 100.0)
         }
     }
-}
+} // ← closes impl GameState
+
+// ── Distance estimation ───────────────────────────────────────────────
 
 fn get_timestamp() -> u64 {
     SystemTime::now()
@@ -176,146 +286,533 @@ fn get_timestamp() -> u64 {
         .as_millis() as u64
 }
 
-fn detect_players(
+fn focal_length() -> f64 {
+    (CALIB_PIXEL_DIAMETER * CALIB_DISTANCE_INCHES) / BALL_REAL_DIAMETER_INCHES
+}
+
+fn estimate_distance_inches(pixel_diameter: f64) -> f64 {
+    if pixel_diameter < 1.0 {
+        return 9999.0;
+    }
+    (BALL_REAL_DIAMETER_INCHES * focal_length()) / pixel_diameter
+}
+
+fn distance_to_zone(distance_inches: f64) -> bool {
+    // true = 3PT, false = 2PT
+    distance_inches >= THREE_PT_DISTANCE_INCHES
+}
+
+// ── Ball detection ────────────────────────────────────────────────────
+
+fn detect_ball(
     frame: &Mat,
-    bg_sub: &mut opencv::core::Ptr<video::BackgroundSubtractorMOG2>,
-) -> Result<Vec<PlayerDetection>, opencv::Error> {
-    let mut players = Vec::new();
-    let timestamp = get_timestamp();
+    last_ball: &Option<BallPosition>,
+    candidate: &mut BallCandidate,
+) -> Result<Option<BallPosition>, opencv::Error> {
+    let now_ms = get_timestamp();
 
-    let mut gray = Mat::default();
-    imgproc::cvt_color(frame, &mut gray, imgproc::COLOR_BGR2GRAY, 0)?;
+    // ── HSV threshold ─────────────────────────────────────────────────
+    let mut hsv = Mat::default();
+    imgproc::cvt_color(frame, &mut hsv, imgproc::COLOR_BGR2HSV, 0)?;
 
-    let mut fg_mask = Mat::default();
-    opencv::prelude::BackgroundSubtractorTrait::apply(&mut *bg_sub, &gray, &mut fg_mask, -1.0)?;
+    let lower = Scalar::new(BALL_H_MIN, BALL_S_MIN, BALL_V_MIN, 0.0);
+    let upper = Scalar::new(BALL_H_MAX, BALL_S_MAX, BALL_V_MAX, 0.0);
+    let mut mask = Mat::default();
+    core::in_range(&hsv, &lower, &upper, &mut mask)?;
 
-    let kernel = imgproc::get_structuring_element(
+    // ── Morphology — bridge seam lines ────────────────────────────────
+    let k_small = imgproc::get_structuring_element(
         imgproc::MORPH_ELLIPSE,
-        Size::new(5, 5),
+        Size::new(3, 3),
         Point::new(-1, -1),
     )?;
-    let mut clean_mask = Mat::default();
+    let k_large = imgproc::get_structuring_element(
+        imgproc::MORPH_ELLIPSE,
+        Size::new(15, 15),
+        Point::new(-1, -1),
+    )?;
+    let mut opened = Mat::default();
     imgproc::morphology_ex(
-        &fg_mask,
-        &mut clean_mask,
+        &mask,
+        &mut opened,
         imgproc::MORPH_OPEN,
-        &kernel,
+        &k_small,
         Point::new(-1, -1),
         1,
         BORDER_DEFAULT,
         core::Scalar::default(),
     )?;
+    let mut closed = Mat::default();
+    imgproc::morphology_ex(
+        &opened,
+        &mut closed,
+        imgproc::MORPH_CLOSE,
+        &k_large,
+        Point::new(-1, -1),
+        3,
+        BORDER_DEFAULT,
+        core::Scalar::default(),
+    )?;
 
+    // ── Find contours ─────────────────────────────────────────────────
     let mut contours = Vector::<Vector<Point>>::new();
     imgproc::find_contours(
-        &clean_mask,
+        &closed,
         &mut contours,
         imgproc::RETR_EXTERNAL,
         imgproc::CHAIN_APPROX_SIMPLE,
         Point::new(0, 0),
     )?;
 
+    // ── Pick best candidate ───────────────────────────────────────────
+    // Score = area * circularity. No hard rejection except size range.
+    // This means the largest most-circular orange blob wins every frame.
+    let mut best: Option<(f64, i32, i32, i32)> = None;
+
     for i in 0..contours.len() {
         let contour = contours.get(i)?;
         let area = imgproc::contour_area(&contour, false)?;
-        if area > MIN_CONTOUR_AREA && area < MAX_CONTOUR_AREA {
-            let rect = imgproc::bounding_rect(&contour)?;
-            let aspect_ratio = rect.height as f32 / rect.width as f32;
-            if aspect_ratio > MIN_ASPECT_RATIO && aspect_ratio < MAX_ASPECT_RATIO {
-                players.push(PlayerDetection {
-                    id: timestamp + i as u64,
-                    x: rect.x + rect.width / 2,
-                    y: rect.y + rect.height / 2,
-                    width: rect.width,
-                    height: rect.height,
-                    timestamp,
-                });
-            }
+        if area < 200.0 {
+            continue;
+        } // ignore tiny specks
+
+        let rect = imgproc::bounding_rect(&contour)?;
+        let radius = ((rect.width + rect.height) / 4).max(1);
+
+        // Only size range is a hard filter — everything else is scoring
+        if radius < BALL_MIN_RADIUS_PX || radius > BALL_MAX_RADIUS_PX {
+            continue;
+        }
+
+        // Circularity as score multiplier, not hard filter
+        let perimeter = imgproc::arc_length(&contour, true)?;
+        let circularity = if perimeter > 1.0 {
+            4.0 * std::f64::consts::PI * area / (perimeter * perimeter)
+        } else {
+            0.1
+        };
+
+        // Aspect ratio as score multiplier, not hard filter
+        let aspect = rect.width as f64 / rect.height.max(1) as f64;
+        let aspect_score = 1.0 - (aspect - 1.0).abs().min(1.0);
+
+        // Size consistency — soft penalty if locked and size jumps a lot
+        let size_penalty = if let Some(ref last) = last_ball {
+            let change = (radius - last.radius).abs() as f64 / last.radius.max(1) as f64;
+            if change > 0.6 {
+                0.3
+            } else {
+                1.0
+            } // penalize but don't reject
+        } else {
+            1.0
+        };
+
+        let score = area * circularity * aspect_score * size_penalty;
+
+        if best.is_none() || score > best.unwrap().0 {
+            let cx = rect.x + rect.width / 2;
+            let cy = rect.y + rect.height / 2;
+            best = Some((score, cx, cy, radius));
         }
     }
-    Ok(players)
+
+    match best {
+        Some((_, cx, cy, radius)) => {
+            // Confirmation gate
+            let dist_from_candidate = {
+                let dx = cx - candidate.px;
+                let dy = cy - candidate.py;
+                ((dx * dx + dy * dy) as f32).sqrt()
+            };
+
+            if dist_from_candidate < 150.0 || candidate.confirm_count == 0 {
+                candidate.px = cx;
+                candidate.py = cy;
+                candidate.radius = radius;
+                candidate.confirm_count += 1;
+            } else {
+                // New position — reset but start counting from 1
+                candidate.px = cx;
+                candidate.py = cy;
+                candidate.radius = radius;
+                candidate.confirm_count = 1;
+                candidate.vel_y_history.clear();
+            }
+
+            if candidate.confirm_count >= BALL_LOCK_CONFIRM_FRAMES {
+                // Velocity
+                let (vel_x, vel_y) = if let Some(ref last) = last_ball {
+                    let dt = (now_ms.saturating_sub(last.last_seen_ms)).max(1) as f32 / 1000.0;
+                    ((cx - last.px) as f32 / dt, (cy - last.py) as f32 / dt)
+                } else {
+                    (0.0, 0.0)
+                };
+
+                // Smoothed velocity
+                candidate.vel_y_history.push(vel_y);
+                if candidate.vel_y_history.len() > 2 {
+                    candidate.vel_y_history.remove(0);
+                }
+                let smooth_vel_y = candidate.vel_y_history.iter().sum::<f32>()
+                    / candidate.vel_y_history.len() as f32;
+
+                // Distance estimation
+                let pixel_diameter = (radius * 2) as f64;
+                let distance_inches = estimate_distance_inches(pixel_diameter);
+                let distance_ft = distance_inches / 12.0;
+                let is_three = distance_to_zone(distance_inches);
+
+                Ok(Some(BallPosition {
+                    px: cx,
+                    py: cy,
+                    radius,
+                    last_seen_ms: now_ms,
+                    distance_inches,
+                    distance_ft,
+                    is_three,
+                    vel_x,
+                    vel_y,
+                    smooth_vel_y,
+                }))
+            } else {
+                // Still confirming — hold last if recent enough
+                if let Some(ref last) = last_ball {
+                    if now_ms.saturating_sub(last.last_seen_ms) < BALL_LOST_TIMEOUT_MS {
+                        return Ok(Some(last.clone()));
+                    }
+                }
+                Ok(None)
+            }
+        }
+        None => {
+            candidate.confirm_count = 0;
+            candidate.vel_y_history.clear();
+            if let Some(ref last) = last_ball {
+                if now_ms.saturating_sub(last.last_seen_ms) < BALL_LOST_TIMEOUT_MS {
+                    return Ok(Some(last.clone()));
+                }
+            }
+            Ok(None)
+        }
+    }
 }
 
-fn draw_heatmap_overlay(
-    frame: &mut Mat,
-    heatmap_data: &HashMap<(i32, i32), u32>,
-) -> Result<(), opencv::Error> {
-    if heatmap_data.is_empty() {
-        return Ok(());
+// ── Draw overlays ─────────────────────────────────────────────────────
+
+fn draw_ball_overlay(frame: &mut Mat, ball: &Option<BallPosition>) -> Result<(), opencv::Error> {
+    match ball {
+        Some(ref b) => {
+            // ── Thick circle around ball — hard to miss ───────────────
+            imgproc::circle(
+                frame,
+                Point::new(b.px, b.py),
+                b.radius + 6,
+                Scalar::new(0.0, 255.0, 255.0, 0.0),
+                3,
+                imgproc::LINE_AA,
+                0,
+            )?;
+            // Inner circle
+            imgproc::circle(
+                frame,
+                Point::new(b.px, b.py),
+                b.radius + 2,
+                Scalar::new(0.0, 180.0, 180.0, 0.0),
+                1,
+                imgproc::LINE_AA,
+                0,
+            )?;
+            // Center crosshair dot
+            imgproc::circle(
+                frame,
+                Point::new(b.px, b.py),
+                4,
+                Scalar::new(0.0, 255.0, 255.0, 0.0),
+                -1,
+                imgproc::LINE_AA,
+                0,
+            )?;
+
+            // ── Crosshair lines ───────────────────────────────────────
+            imgproc::line(
+                frame,
+                Point::new(b.px - b.radius - 15, b.py),
+                Point::new(b.px - b.radius - 5, b.py),
+                Scalar::new(0.0, 255.0, 255.0, 0.0),
+                2,
+                imgproc::LINE_AA,
+                0,
+            )?;
+            imgproc::line(
+                frame,
+                Point::new(b.px + b.radius + 5, b.py),
+                Point::new(b.px + b.radius + 15, b.py),
+                Scalar::new(0.0, 255.0, 255.0, 0.0),
+                2,
+                imgproc::LINE_AA,
+                0,
+            )?;
+            imgproc::line(
+                frame,
+                Point::new(b.px, b.py - b.radius - 15),
+                Point::new(b.px, b.py - b.radius - 5),
+                Scalar::new(0.0, 255.0, 255.0, 0.0),
+                2,
+                imgproc::LINE_AA,
+                0,
+            )?;
+            imgproc::line(
+                frame,
+                Point::new(b.px, b.py + b.radius + 5),
+                Point::new(b.px, b.py + b.radius + 15),
+                Scalar::new(0.0, 255.0, 255.0, 0.0),
+                2,
+                imgproc::LINE_AA,
+                0,
+            )?;
+
+            // ── Zone + distance label next to ball ────────────────────
+            let zone_str = if b.is_three { "3PT" } else { "2PT" };
+            let zone_color = if b.is_three {
+                Scalar::new(0.0, 200.0, 255.0, 0.0) // orange = 3PT
+            } else {
+                Scalar::new(0.0, 255.0, 140.0, 0.0) // green = 2PT
+            };
+            // Shadow for readability
+            imgproc::put_text(
+                frame,
+                zone_str,
+                Point::new(b.px + b.radius + 9, b.py + 6),
+                imgproc::FONT_HERSHEY_SIMPLEX,
+                0.75,
+                Scalar::new(0.0, 0.0, 0.0, 0.0),
+                4,
+                imgproc::LINE_AA,
+                false,
+            )?;
+            imgproc::put_text(
+                frame,
+                zone_str,
+                Point::new(b.px + b.radius + 8, b.py + 5),
+                imgproc::FONT_HERSHEY_SIMPLEX,
+                0.75,
+                zone_color,
+                2,
+                imgproc::LINE_AA,
+                false,
+            )?;
+
+            let dist_str = format!("{:.1}ft", b.distance_ft);
+            imgproc::put_text(
+                frame,
+                &dist_str,
+                Point::new(b.px + b.radius + 9, b.py + 27),
+                imgproc::FONT_HERSHEY_SIMPLEX,
+                0.5,
+                Scalar::new(0.0, 0.0, 0.0, 0.0),
+                3,
+                imgproc::LINE_AA,
+                false,
+            )?;
+            imgproc::put_text(
+                frame,
+                &dist_str,
+                Point::new(b.px + b.radius + 8, b.py + 26),
+                imgproc::FONT_HERSHEY_SIMPLEX,
+                0.5,
+                Scalar::new(200.0, 200.0, 200.0, 0.0),
+                1,
+                imgproc::LINE_AA,
+                false,
+            )?;
+
+            // ── SHOT DETECTED — big bold banner above ball ────────────
+            if b.smooth_vel_y < SHOT_RELEASE_VEL_Y {
+                // Dark background rectangle for readability
+                let text = "SHOT DETECTED";
+                let tx = (b.px - 95).max(5);
+                let ty = (b.py - b.radius - 35).max(40);
+                imgproc::rectangle(
+                    frame,
+                    opencv::core::Rect::new(tx - 5, ty - 25, 210, 35),
+                    Scalar::new(0.0, 0.0, 180.0, 0.0),
+                    -1,
+                    imgproc::LINE_AA,
+                    0,
+                )?;
+                imgproc::rectangle(
+                    frame,
+                    opencv::core::Rect::new(tx - 5, ty - 25, 210, 35),
+                    Scalar::new(0.0, 80.0, 255.0, 0.0),
+                    2,
+                    imgproc::LINE_AA,
+                    0,
+                )?;
+                imgproc::put_text(
+                    frame,
+                    text,
+                    Point::new(tx, ty),
+                    imgproc::FONT_HERSHEY_DUPLEX,
+                    0.65,
+                    Scalar::new(255.0, 255.0, 255.0, 0.0),
+                    2,
+                    imgproc::LINE_AA,
+                    false,
+                )?;
+            }
+
+            // ── Status bar top-left ───────────────────────────────────
+            // Green filled background when locked
+            imgproc::rectangle(
+                frame,
+                opencv::core::Rect::new(5, 5, 200, 36),
+                Scalar::new(0.0, 140.0, 0.0, 0.0),
+                -1,
+                imgproc::LINE_AA,
+                0,
+            )?;
+            imgproc::rectangle(
+                frame,
+                opencv::core::Rect::new(5, 5, 200, 36),
+                Scalar::new(0.0, 255.0, 0.0, 0.0),
+                2,
+                imgproc::LINE_AA,
+                0,
+            )?;
+            imgproc::put_text(
+                frame,
+                "BALL LOCKED",
+                Point::new(12, 31),
+                imgproc::FONT_HERSHEY_DUPLEX,
+                0.7,
+                Scalar::new(255.0, 255.0, 255.0, 0.0),
+                1,
+                imgproc::LINE_AA,
+                false,
+            )?;
+
+            // ── Velocity debug line below status ──────────────────────
+            let vel_str = format!("vy:{:.0} svy:{:.0}", b.vel_y, b.smooth_vel_y);
+            imgproc::put_text(
+                frame,
+                &vel_str,
+                Point::new(8, 55),
+                imgproc::FONT_HERSHEY_SIMPLEX,
+                0.38,
+                Scalar::new(0.0, 220.0, 220.0, 0.0),
+                1,
+                imgproc::LINE_AA,
+                false,
+            )?;
+        }
+        None => {
+            // ── Red status bar when scanning ──────────────────────────
+            imgproc::rectangle(
+                frame,
+                opencv::core::Rect::new(5, 5, 260, 36),
+                Scalar::new(0.0, 0.0, 140.0, 0.0),
+                -1,
+                imgproc::LINE_AA,
+                0,
+            )?;
+            imgproc::rectangle(
+                frame,
+                opencv::core::Rect::new(5, 5, 260, 36),
+                Scalar::new(0.0, 0.0, 220.0, 0.0),
+                2,
+                imgproc::LINE_AA,
+                0,
+            )?;
+            imgproc::put_text(
+                frame,
+                "SCANNING FOR BALL...",
+                Point::new(12, 31),
+                imgproc::FONT_HERSHEY_DUPLEX,
+                0.6,
+                Scalar::new(255.0, 255.0, 255.0, 0.0),
+                1,
+                imgproc::LINE_AA,
+                false,
+            )?;
+        }
     }
-
-    let mut heatmap_mat =
-        Mat::zeros(frame.rows(), frame.cols(), opencv::core::CV_8UC3)?.to_mat()?;
-    let max_intensity = heatmap_data.values().max().copied().unwrap_or(1);
-
-    for (&(x, y), &intensity) in heatmap_data {
-        let normalized = (intensity as f64 / max_intensity as f64).min(1.0);
-        let hue = ((1.0 - normalized) * 120.0) as i32;
-        imgproc::circle(
-            &mut heatmap_mat,
-            Point::new(x, y),
-            HEATMAP_CIRCLE_RADIUS,
-            Scalar::new(hue as f64, 255.0, 255.0, 255.0),
-            -1,
-            imgproc::LINE_8,
-            0,
-        )?;
-    }
-
-    let mut heatmap_bgr = Mat::default();
-    imgproc::cvt_color(&heatmap_mat, &mut heatmap_bgr, imgproc::COLOR_HSV2BGR, 0)?;
-
-    let mut blurred = Mat::default();
-    imgproc::gaussian_blur(
-        &heatmap_bgr,
-        &mut blurred,
-        Size::new(25, 25),
-        0.0,
-        0.0,
-        BORDER_DEFAULT,
-    )?;
-
-    let mut output = Mat::default();
-    core::add_weighted(
-        frame,
-        1.0 - HEATMAP_OPACITY,
-        &blurred,
-        HEATMAP_OPACITY,
-        0.0,
-        &mut output,
-        -1,
-    )?;
-    output.copy_to(frame)?;
     Ok(())
 }
 
-fn draw_player_overlay(frame: &mut Mat, players: &[PlayerDetection]) -> Result<(), opencv::Error> {
-    for player in players {
-        imgproc::rectangle(
+fn draw_shot_dots(frame: &mut Mat, shot_dots: &[ShotDot]) -> Result<(), opencv::Error> {
+    const DOT_COLOR_2PT_MAKE: (f64, f64, f64) = (0.0, 255.0, 140.0);
+    const DOT_COLOR_2PT_MISS: (f64, f64, f64) = (0.0, 80.0, 255.0);
+    const DOT_COLOR_3PT_MAKE: (f64, f64, f64) = (0.0, 220.0, 255.0);
+    const DOT_COLOR_3PT_MISS: (f64, f64, f64) = (60.0, 0.0, 255.0);
+    const DOT_RADIUS: i32 = 12;
+
+    for dot in shot_dots {
+        let (r, g, b) = match (dot.is_three, dot.made) {
+            (false, true) => DOT_COLOR_2PT_MAKE,
+            (false, false) => DOT_COLOR_2PT_MISS,
+            (true, true) => DOT_COLOR_3PT_MAKE,
+            (true, false) => DOT_COLOR_3PT_MISS,
+        };
+        imgproc::circle(
             frame,
-            Rect::new(
-                player.x - player.width / 2,
-                player.y - player.height / 2,
-                player.width,
-                player.height,
-            ),
-            Scalar::new(0.0, 200.0, 80.0, 255.0),
-            2,
+            Point::new(dot.px, dot.py),
+            DOT_RADIUS,
+            Scalar::new(b, g, r, 0.0),
+            -1,
             imgproc::LINE_AA,
             0,
         )?;
-    }
-
-    let cyan = Scalar::new(255.0, 255.0, 0.0, 255.0);
-    let texts: &[&str] = &["PLAYER HEATMAP", &format!("Players: {}", players.len())];
-    for (i, text) in texts.iter().enumerate() {
+        imgproc::circle(
+            frame,
+            Point::new(dot.px, dot.py),
+            DOT_RADIUS,
+            Scalar::new(255.0, 255.0, 255.0, 0.0),
+            1,
+            imgproc::LINE_AA,
+            0,
+        )?;
+        let label = format!("{:.0}ft", dot.dist_ft);
         imgproc::put_text(
             frame,
-            text,
-            Point::new(10, 28 + i as i32 * 28),
-            imgproc::FONT_HERSHEY_DUPLEX,
-            0.55,
-            cyan,
+            &label,
+            Point::new(dot.px + DOT_RADIUS + 3, dot.py + 4),
+            imgproc::FONT_HERSHEY_SIMPLEX,
+            0.4,
+            Scalar::new(255.0, 255.0, 255.0, 0.0),
+            1,
+            imgproc::LINE_AA,
+            false,
+        )?;
+    }
+    Ok(())
+}
+
+fn draw_legend(frame: &mut Mat) -> Result<(), opencv::Error> {
+    let items: &[(&str, (f64, f64, f64))] = &[
+        ("2PT Make", (0.0, 255.0, 140.0)),
+        ("2PT Miss", (0.0, 80.0, 255.0)),
+        ("3PT Make", (0.0, 220.0, 255.0)),
+        ("3PT Miss", (60.0, 0.0, 255.0)),
+    ];
+    for (i, (label, (r, g, b))) in items.iter().enumerate() {
+        let y = 55 + i as i32 * 22;
+        imgproc::circle(
+            frame,
+            Point::new(15, y),
+            6,
+            Scalar::new(*b, *g, *r, 0.0),
+            -1,
+            imgproc::LINE_AA,
+            0,
+        )?;
+        imgproc::put_text(
+            frame,
+            label,
+            Point::new(26, y + 5),
+            imgproc::FONT_HERSHEY_SIMPLEX,
+            0.42,
+            Scalar::new(220.0, 220.0, 220.0, 0.0),
             1,
             imgproc::LINE_AA,
             false,
@@ -328,6 +825,8 @@ fn push_frame_to_rtsp(frame_data: &[u8], ffmpeg_stdin: &mut std::process::ChildS
     ffmpeg_stdin.write_all(frame_data).is_ok()
 }
 
+// ── Camera loop ───────────────────────────────────────────────────────
+
 fn process_heatmap_camera(
     mut camera: videoio::VideoCapture,
     state: Arc<Mutex<GameState>>,
@@ -336,11 +835,8 @@ fn process_heatmap_camera(
     let mut frame = Mat::default();
     let mut frame_times: VecDeque<Instant> = VecDeque::new();
     let mut local_count: u64 = 0;
+    let mut ball_candidate = BallCandidate::default();
 
-    let mut bg_sub =
-        video::create_background_subtractor_mog2(BG_HISTORY_FRAMES, BG_VARIANCE_THRESHOLD, false)?;
-
-    // ── FFmpeg 1: heatmap stream (OpenCV overlay) → RTSP ─────────────
     let mut ffmpeg_heatmap = std::process::Command::new("ffmpeg")
         .args([
             "-f",
@@ -358,9 +854,9 @@ fn process_heatmap_camera(
             "-threads",
             "4",
             "-b:v",
-            "4M",
+            "3M",
             "-maxrate",
-            "6M",
+            "5M",
             "-bufsize",
             "2M",
             "-g",
@@ -382,7 +878,6 @@ fn process_heatmap_camera(
         .take()
         .expect("Failed to get heatmap stdin");
 
-    // ── FFmpeg 2: raw MJPEG → v4l2loopback → basketball RTSP ─────────
     let mut ffmpeg_loop = std::process::Command::new("ffmpeg")
         .args([
             "-f",
@@ -411,6 +906,11 @@ fn process_heatmap_camera(
         .expect("Failed to get loopback stdin");
 
     println!("C922x dual-stream started: heatmap + basketball @ 720p60");
+    println!(
+        "Focal length: {:.1} (CALIB_PIXEL_DIAMETER={:.0})",
+        focal_length(),
+        CALIB_PIXEL_DIAMETER
+    );
 
     loop {
         camera.read(&mut frame)?;
@@ -421,26 +921,41 @@ fn process_heatmap_camera(
 
         local_count += 1;
 
-        // ── Push raw frame to loopback BEFORE drawing overlays ────────
+        // Push raw frame to loopback BEFORE overlays
         let mut raw_buf = Vector::<u8>::new();
         let raw_params = Vector::<i32>::from_slice(&[imgcodecs::IMWRITE_JPEG_QUALITY, 85]);
         if imgcodecs::imencode(".jpg", &frame, &mut raw_buf, &raw_params).is_ok() {
             let _ = ffmpeg_loop_stdin.write_all(&raw_buf.to_vec());
         }
 
-        // ── Player detection every N frames ───────────────────────────
-        let players = if local_count % HEATMAP_DETECT_EVERY_N_FRAMES == 0 {
-            detect_players(&frame, &mut bg_sub).unwrap_or_default()
+        // Ball detection every N frames
+        let ball = if local_count % HEATMAP_DETECT_EVERY_N_FRAMES == 0 {
+            let last_ball = state.lock().unwrap().ball_position.clone();
+            detect_ball(&frame, &last_ball, &mut ball_candidate).unwrap_or(None)
         } else {
-            state.lock().unwrap().current_players.clone()
+            state.lock().unwrap().ball_position.clone()
         };
 
-        let heatmap_snapshot = {
+        // Update state
+        {
             let mut s = state.lock().unwrap();
             s.heatmap_frame_count = local_count;
-            s.total_players_detected += players.len() as u64;
-            s.update_heatmap(&players);
-            s.current_players = players.clone();
+            s.ball_position = ball.clone();
+
+            if let Some(ref b) = ball {
+                s.pending_zone = Some(b.is_three);
+                s.total_players_detected += 1;
+                s.current_players = vec![PlayerDetection {
+                    id: get_timestamp(),
+                    x: b.px,
+                    y: b.py,
+                    width: b.radius * 2,
+                    height: b.radius * 2,
+                    timestamp: b.last_seen_ms,
+                }];
+            } else {
+                s.current_players.clear();
+            }
 
             frame_times.push_back(Instant::now());
             if frame_times.len() > 30 {
@@ -453,18 +968,21 @@ fn process_heatmap_camera(
                     .duration_since(*frame_times.front().unwrap());
                 s.heatmap_fps = (frame_times.len() - 1) as f32 / dur.as_secs_f32();
             }
-            s.heatmap_data.clone()
-        };
-
-        // ── Draw overlays ─────────────────────────────────────────────
-        if let Err(e) = draw_heatmap_overlay(&mut frame, &heatmap_snapshot) {
-            eprintln!("Heatmap overlay error: {}", e);
-        }
-        if let Err(e) = draw_player_overlay(&mut frame, &players) {
-            eprintln!("Player overlay error: {}", e);
         }
 
-        // ── Encode overlaid frame → heatmap RTSP ─────────────────────
+        // Draw overlays
+        let shot_dots_snap = state.lock().unwrap().shot_dots.clone();
+        if let Err(e) = draw_shot_dots(&mut frame, &shot_dots_snap) {
+            eprintln!("Shot dots error: {}", e);
+        }
+        if let Err(e) = draw_ball_overlay(&mut frame, &ball) {
+            eprintln!("Ball overlay error: {}", e);
+        }
+        if let Err(e) = draw_legend(&mut frame) {
+            eprintln!("Legend error: {}", e);
+        }
+
+        // Encode and stream
         let mut buf = Vector::<u8>::new();
         let params =
             Vector::<i32>::from_slice(&[imgcodecs::IMWRITE_JPEG_QUALITY, JPEG_QUALITY_HEATMAP]);
@@ -483,48 +1001,75 @@ fn process_heatmap_camera(
     Ok(())
 }
 
+// ── ESP32 listener ────────────────────────────────────────────────────
+
 fn listen_to_esp32(state: Arc<Mutex<GameState>>) {
     thread::spawn(move || {
         let ports = ["/dev/ttyUSB0", "/dev/ttyACM0"];
         loop {
             for port in &ports {
                 println!("Attempting to connect to ESP32 on {}", port);
-                if let Ok(mut file) = std::fs::OpenOptions::new().read(true).write(true).open(port) {
+                if let Ok(mut file) = std::fs::OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .open(port)
+                {
                     println!("Connected to ESP32 on {}", port);
                     thread::sleep(Duration::from_millis(2000));
                     let _ = file.write_all(b"ENABLE\n");
                     println!("Sent ENABLE to ESP32");
+
                     for line in BufReader::new(file).lines() {
                         if let Ok(data) = line {
                             let data = data.trim().to_string();
                             if data.is_empty() {
                                 continue;
                             }
+
                             let mut s = state.lock().unwrap();
-                            let players = s.current_players.clone();
+                            let now_ms = get_timestamp();
+
+                            let _hits: u32 = data
+                                .split(',')
+                                .find(|p| p.starts_with("HITS:"))
+                                .and_then(|p| p[5..].parse().ok())
+                                .unwrap_or(1);
+                            let _delta: u32 = data
+                                .split(',')
+                                .find(|p| p.starts_with("DELTA:"))
+                                .and_then(|p| p[6..].parse().ok())
+                                .unwrap_or(0);
+
                             if data.starts_with("MAKE:") {
-                                // IR beam broken with prior piezo = backboard make
                                 s.make_count += 1;
                                 s.backboard_make_count += 1;
-                                s.record_shot(&players, true, "Backboard Make", 1280, 720);
-                                println!("Basketball make (backboard): total {}", s.make_count);
+                                s.last_serial_event_ms = now_ms;
+                                let zone = s.pending_zone;
+                                s.record_shot_with_zone(true, "Make", 1280, 720, zone);
+                                println!("Make! total {}", s.make_count);
                             } else if data.starts_with("SWISH:") {
-                                // IR beam broken with NO prior piezo = swish
                                 s.make_count += 1;
                                 s.swish_count += 1;
-                                s.record_shot(&players, true, "Swish", 1280, 720);
-                                println!("Swish! total makes: {}", s.make_count);
+                                s.last_serial_event_ms = now_ms;
+                                let zone = s.pending_zone;
+                                s.record_shot_with_zone(true, "Swish", 1280, 720, zone);
+                                println!("Swish! total {}", s.make_count);
                             } else if data.starts_with("BACK:") {
-                                // Piezo hit, no IR = backboard miss
                                 s.backboard_count += 1;
                                 s.backboard_miss_count += 1;
-                                s.record_shot(&players, false, "Backboard Miss", 1280, 720);
+                                s.last_serial_event_ms = now_ms;
+                                let zone = s.pending_zone;
+                                s.record_shot_with_zone(false, "Backboard Miss", 1280, 720, zone);
                                 println!("Backboard miss: total {}", s.backboard_count);
                             } else if data.starts_with("RIM:") {
-                                // Rim hit only
                                 s.rim_count += 1;
-                                s.record_shot(&players, false, "Rim Hit", 1280, 720);
-                                println!("Rim hit: total {}", s.rim_count);
+                                s.last_serial_event_ms = now_ms;
+                                println!("Rim contact: total {}", s.rim_count);
+                            } else if data.starts_with("AIRBALL:") {
+                                s.airball_count += 1;
+                                s.last_serial_event_ms = now_ms;
+                                s.record_shot(false, "Airball", 1280, 720);
+                                println!("Airball (ESP32)! total: {}", s.airball_count);
                             }
                         }
                     }
@@ -535,6 +1080,124 @@ fn listen_to_esp32(state: Arc<Mutex<GameState>>) {
         }
     });
 }
+
+// ── Airball watcher ───────────────────────────────────────────────────
+// Watches ball velocity for a shot release signature (ball moving upward fast).
+// Starts a 5-second window waiting for ESP32 confirmation.
+// If no MAKE/SWISH/BACK/RIM fires within 5s → classified as AIRBALL.
+
+fn start_airball_watcher(state: Arc<Mutex<GameState>>) {
+    thread::spawn(move || {
+        #[derive(PartialEq)]
+        enum WatchState {
+            Idle,
+            WaitingForEsp32,
+        }
+
+        let mut watch_state = WatchState::Idle;
+        let mut release_ms = 0u64;
+        let mut serial_at_release = 0u64;
+        let mut last_airball_ms = 0u64;
+        let mut release_zone: Option<bool> = None;
+
+        loop {
+            thread::sleep(Duration::from_millis(50)); // 20hz check
+            let now_ms = get_timestamp();
+
+            let (ball, last_serial) = {
+                let s = state.lock().unwrap();
+                (s.ball_position.clone(), s.last_serial_event_ms)
+            };
+
+            match watch_state {
+                WatchState::Idle => {
+                    if let Some(ref b) = ball {
+                        // ── Shot release conditions (ALL must be true) ────────────────
+                        //
+                        // 1. Ball moving upward fast enough to be a shot arc
+                        let moving_up = b.smooth_vel_y < SHOT_RELEASE_VEL_Y;
+
+                        // 2. Not a lateral pass — must be mostly vertical movement
+                        let not_a_pass = b.vel_x.abs() < SHOT_RELEASE_VEL_X_MAX;
+
+                        // 3. Ball must be in shooting zone — not right under the basket.
+                        //    Under the basket = lower portion of frame (high py value).
+                        //    A shot is released from mid-to-far distance, so ball should
+                        //    be in the middle or far half of the frame vertically.
+                        let not_under_basket = b.py < 480;
+
+                        // 4. Ball must be at a shootable distance from camera.
+                        //    Anything under 4ft is right under/at the basket — not a shot.
+                        let shootable_distance = b.distance_ft > 4.0;
+
+                        // 5. Ball must have been moving consistently upward — not just
+                        //    a single noisy frame. Check velocity magnitude is significant.
+                        let strong_upward = b.smooth_vel_y < -220.0;
+
+                        // 6. Cooldown between shot detections — ignore re-triggers
+                        let cooldown_ok =
+                            now_ms.saturating_sub(last_airball_ms) > AIRBALL_COOLDOWN_MS;
+
+                        if moving_up
+                            && strong_upward
+                            && not_a_pass
+                            && not_under_basket
+                            && shootable_distance
+                            && cooldown_ok
+                        {
+                            watch_state = WatchState::WaitingForEsp32;
+                            release_ms = now_ms;
+                            serial_at_release = last_serial;
+                            release_zone = Some(b.is_three);
+                            println!(
+                                "Shot release detected — vel_y:{:.0}px/s dist:{:.1}ft zone:{} — waiting 5s",
+                                b.vel_y, b.distance_ft,
+                                if b.is_three { "3PT" } else { "2PT" }
+                            );
+                        }
+                    }
+                }
+
+                WatchState::WaitingForEsp32 => {
+                    let elapsed = now_ms.saturating_sub(release_ms);
+
+                    // ESP32 fired after release → normal shot result, cancel airball
+                    if last_serial > serial_at_release {
+                        println!("ESP32 confirmed shot — cancelling airball timer");
+                        watch_state = WatchState::Idle;
+                        continue;
+                    }
+
+                    // 5 second window expired with no ESP32 event → AIRBALL
+                    if elapsed >= AIRBALL_WAIT_MS {
+                        let cooldown_ok =
+                            now_ms.saturating_sub(last_airball_ms) > AIRBALL_COOLDOWN_MS;
+
+                        if cooldown_ok {
+                            let mut s = state.lock().unwrap();
+                            s.airball_count += 1;
+                            s.record_shot_with_zone(false, "Airball", 1280, 720, release_zone);
+                            println!(
+                                "AIRBALL! zone:{} total:{}",
+                                if release_zone == Some(true) {
+                                    "3PT"
+                                } else {
+                                    "2PT"
+                                },
+                                s.airball_count
+                            );
+                            last_airball_ms = now_ms;
+                        }
+
+                        watch_state = WatchState::Idle;
+                    }
+                }
+            }
+        }
+    });
+}
+
+// ── Cloud API ─────────────────────────────────────────────────────────
 
 fn send_to_cloud_api(state: Arc<Mutex<GameState>>, frames: Arc<FrameStore>, api_url: String) {
     thread::spawn(move || {
@@ -552,6 +1215,17 @@ fn send_to_cloud_api(state: Arc<Mutex<GameState>>, frames: Arc<FrameStore>, api_
                     .fg_percent()
                     .map(|v| format!("{:.1}", v))
                     .unwrap_or_else(|| "0.0".to_string());
+                let ball_zone = s
+                    .ball_position
+                    .as_ref()
+                    .map(|b| if b.is_three { "3PT" } else { "2PT" })
+                    .unwrap_or("--");
+                let ball_dist_ft = s
+                    .ball_position
+                    .as_ref()
+                    .map(|b| format!("{:.1}", b.distance_ft))
+                    .unwrap_or_else(|| "--".to_string());
+
                 json!({
                     "basketball_fps": 0,
                     "makes": s.make_count,
@@ -561,13 +1235,21 @@ fn send_to_cloud_api(state: Arc<Mutex<GameState>>, frames: Arc<FrameStore>, api_
                     "backboard_misses": s.backboard_miss_count,
                     "backboard_hits": s.backboard_count,
                     "rim_hits": s.rim_count,
+                    "airballs": s.airball_count,
                     "fg_percent": fg,
+                    "two_pt_makes": s.two_pt_makes,
+                    "two_pt_attempts": s.two_pt_attempts,
+                    "three_pt_makes": s.three_pt_makes,
+                    "three_pt_attempts": s.three_pt_attempts,
+                    "shot_dots": s.shot_dots,
                     "last_shot_type": s.last_shot_type,
+                    "ball_zone": ball_zone,
+                    "ball_dist_ft": ball_dist_ft,
                     "trajectories": 0,
                     "heatmap_fps": s.heatmap_fps,
                     "current_players": s.current_players.len() as u64,
                     "total_players_detected": s.total_players_detected,
-                    "heatmap_points": s.heatmap_data.len() as u64,
+                    "heatmap_points": s.shot_dots.len() as u64,
                     "shot_chart": s.shot_chart,
                     "basketball_frame": "",
                     "heatmap_frame": general_purpose::STANDARD.encode(&h_frame),
@@ -588,11 +1270,24 @@ fn send_to_cloud_api(state: Arc<Mutex<GameState>>, frames: Arc<FrameStore>, api_
     });
 }
 
+// ── Main ──────────────────────────────────────────────────────────────
+
 fn main() -> Result<(), opencv::Error> {
     println!("========================================");
     println!("HOOP IQ - C922x Dual Stream 720p@60fps");
     println!("CECS490 Senior Project - Team 2");
     println!("========================================\n");
+    println!("Ball distance estimation active.");
+    println!(
+        "Focal length: {:.1} px (calib: {:.0}px @ {}in)",
+        focal_length(),
+        CALIB_PIXEL_DIAMETER,
+        CALIB_DISTANCE_INCHES as i32
+    );
+    println!(
+        "3PT threshold: {:.0}ft from camera\n",
+        THREE_PT_DISTANCE_INCHES / 12.0
+    );
 
     let game_state = Arc::new(Mutex::new(GameState::new()));
     let frame_store = FrameStore::new();
@@ -639,6 +1334,7 @@ fn main() -> Result<(), opencv::Error> {
     };
 
     listen_to_esp32(Arc::clone(&game_state));
+    start_airball_watcher(Arc::clone(&game_state));
 
     let cloud_api_url = "https://cecs490-senior-project.onrender.com".to_string();
     send_to_cloud_api(
@@ -661,8 +1357,3 @@ fn main() -> Result<(), opencv::Error> {
         thread::sleep(Duration::from_secs(1));
     }
 }
-
-
-
-
-
