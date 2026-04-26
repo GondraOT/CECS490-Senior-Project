@@ -6,10 +6,10 @@
 
 use base64::{engine::general_purpose, Engine as _};
 use opencv::{
-    core::{self, Mat, Point, Rect, Scalar, Size, Vector, BORDER_DEFAULT},
+    core::{self, Mat, Point, Scalar, Size, Vector, BORDER_DEFAULT},
     imgcodecs, imgproc,
     prelude::*,
-    video, videoio,
+    videoio,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -790,7 +790,7 @@ fn draw_ball_overlay(
                 Point::new(8, 55),
                 imgproc::FONT_HERSHEY_SIMPLEX,
                 0.38,
-                Scalar::new(0.0, 220.0, 220.0, 0.0),
+                Scalar::new(255.0, 100.0, 0.0, 0.0),
                 1,
                 imgproc::LINE_AA,
                 false,
@@ -799,22 +799,20 @@ fn draw_ball_overlay(
         None => {
             let (bg_color, border_color, msg) = match tracker_state {
                 TrackerState::Recovering => (
-                    Scalar::new(0.0, 80.0, 180.0, 0.0), // dark blue = recovering
+                    Scalar::new(0.0, 80.0, 180.0, 0.0),
                     Scalar::new(0.0, 140.0, 255.0, 0.0),
                     "WAITING FOR BALL...",
                 ),
                 _ => (
-                    Scalar::new(0.0, 0.0, 140.0, 0.0), // red = searching
+                    Scalar::new(0.0, 0.0, 140.0, 0.0),
                     Scalar::new(0.0, 0.0, 220.0, 0.0),
                     "SCANNING FOR BALL...",
                 ),
             };
-
-            // ── Red status bar when scanning ──────────────────────────
             imgproc::rectangle(
                 frame,
                 opencv::core::Rect::new(5, 5, 260, 36),
-                Scalar::new(0.0, 0.0, 140.0, 0.0),
+                bg_color, // ← use variable
                 -1,
                 imgproc::LINE_AA,
                 0,
@@ -822,14 +820,14 @@ fn draw_ball_overlay(
             imgproc::rectangle(
                 frame,
                 opencv::core::Rect::new(5, 5, 260, 36),
-                Scalar::new(0.0, 0.0, 220.0, 0.0),
+                border_color, // ← use variable
                 2,
                 imgproc::LINE_AA,
                 0,
             )?;
             imgproc::put_text(
                 frame,
-                "SCANNING FOR BALL...",
+                msg, // ← use variable
                 Point::new(12, 31),
                 imgproc::FONT_HERSHEY_DUPLEX,
                 0.6,
@@ -1040,15 +1038,8 @@ fn process_heatmap_camera(
         }
 
         // Draw overlays
-        let shot_dots_snap = state.lock().unwrap().shot_dots.clone();
-        if let Err(e) = draw_shot_dots(&mut frame, &shot_dots_snap) {
-            eprintln!("Shot dots error: {}", e);
-        }
         if let Err(e) = draw_ball_overlay(&mut frame, &ball, &ball_candidate.state) {
             eprintln!("Ball overlay error: {}", e);
-        }
-        if let Err(e) = draw_legend(&mut frame) {
-            eprintln!("Legend error: {}", e);
         }
 
         // Encode and stream
