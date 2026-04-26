@@ -116,13 +116,30 @@ struct BallPosition {
     smooth_vel_y: f32, // ← ADD: averaged over last N frames
 }
 
+#[derive(Clone, Debug, PartialEq)]
+enum TrackerState {
+    Searching,  // never had a lock — accept first good detection
+    Locked,     // actively tracking the ball
+    Recovering, // had lock, ball left frame — wait for it to return, reject everything else
+}
+
+impl Default for TrackerState {
+    fn default() -> Self {
+        TrackerState::Searching
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 struct BallCandidate {
     px: i32,
     py: i32,
     radius: i32,
     confirm_count: u32,
-    vel_y_history: Vec<f32>, // ← ADD: rolling velocity buffer
+    vel_y_history: Vec<f32>,
+    state: TrackerState,
+    lost_at_ms: u64,         // when lock was lost
+    last_locked_radius: i32, // radius when last locked — used for re-acquisition
+    lock_frame_count: u32,   // total frames locked — if high, we're confident
 }
 
 struct FrameStore {
@@ -320,7 +337,7 @@ fn detect_ball(
     let mut mask = Mat::default();
     core::in_range(&hsv, &lower, &upper, &mut mask)?;
 
-    // ── Morphology — bridge seam lines ────────────────────────────────
+    // ── Morphology ────────────────────────────────────────────────────
     let k_small = imgproc::get_structuring_element(
         imgproc::MORPH_ELLIPSE,
         Size::new(3, 3),
@@ -364,9 +381,7 @@ fn detect_ball(
         Point::new(0, 0),
     )?;
 
-    // ── Pick best candidate ───────────────────────────────────────────
-    // Score = area * circularity. No hard rejection except size range.
-    // This means the largest most-circular orange blob wins every frame.
+    // ── Score all candidates ──────────────────────────────────────────
     let mut best: Option<(f64, i32, i32, i32)> = None;
 
     for i in 0..contours.len() {
@@ -374,17 +389,14 @@ fn detect_ball(
         let area = imgproc::contour_area(&contour, false)?;
         if area < 200.0 {
             continue;
-        } // ignore tiny specks
+        }
 
         let rect = imgproc::bounding_rect(&contour)?;
         let radius = ((rect.width + rect.height) / 4).max(1);
-
-        // Only size range is a hard filter — everything else is scoring
         if radius < BALL_MIN_RADIUS_PX || radius > BALL_MAX_RADIUS_PX {
             continue;
         }
 
-        // Circularity as score multiplier, not hard filter
         let perimeter = imgproc::arc_length(&contour, true)?;
         let circularity = if perimeter > 1.0 {
             4.0 * std::f64::consts::PI * area / (perimeter * perimeter)
@@ -392,23 +404,32 @@ fn detect_ball(
             0.1
         };
 
-        // Aspect ratio as score multiplier, not hard filter
         let aspect = rect.width as f64 / rect.height.max(1) as f64;
         let aspect_score = 1.0 - (aspect - 1.0).abs().min(1.0);
 
-        // Size consistency — soft penalty if locked and size jumps a lot
-        let size_penalty = if let Some(ref last) = last_ball {
-            let change = (radius - last.radius).abs() as f64 / last.radius.max(1) as f64;
-            if change > 0.6 {
-                0.3
-            } else {
-                1.0
-            } // penalize but don't reject
-        } else {
-            1.0
-        };
+        // ── RECOVERING: only accept blobs similar in size to last lock ─
+        if candidate.state == TrackerState::Recovering {
+            let expected = candidate.last_locked_radius as f64;
+            let size_diff = (radius as f64 - expected).abs() / expected;
+            // Must be within 40% of last known ball size to re-acquire
+            if size_diff > 0.40 {
+                continue;
+            }
+            // Must be reasonably circular to re-acquire
+            if circularity < 0.35 {
+                continue;
+            }
+        }
 
-        let score = area * circularity * aspect_score * size_penalty;
+        // ── SEARCHING: stricter initial lock requirements ──────────────
+        if candidate.state == TrackerState::Searching {
+            // Require decent circularity before first lock
+            if circularity < 0.30 {
+                continue;
+            }
+        }
+
+        let score = area * circularity * aspect_score;
 
         if best.is_none() || score > best.unwrap().0 {
             let cx = rect.x + rect.width / 2;
@@ -417,31 +438,75 @@ fn detect_ball(
         }
     }
 
+    // ── State machine ─────────────────────────────────────────────────
     match best {
         Some((_, cx, cy, radius)) => {
-            // Confirmation gate
-            let dist_from_candidate = {
+            let dist_from_last = {
                 let dx = cx - candidate.px;
                 let dy = cy - candidate.py;
                 ((dx * dx + dy * dy) as f32).sqrt()
             };
 
-            if dist_from_candidate < 150.0 || candidate.confirm_count == 0 {
+            // If locked and new detection is far away — suspect it's
+            // a different object, not the ball jumping across the frame.
+            // Only allow large jumps if ball was moving fast (high velocity).
+            let max_jump = match candidate.state {
+                TrackerState::Locked => {
+                    let speed = last_ball
+                        .as_ref()
+                        .map(|b| (b.vel_x.abs() + b.vel_y.abs()))
+                        .unwrap_or(0.0);
+                    // Allow larger jump if ball was already moving fast
+                    (150.0 + speed * 0.1).min(400.0) as f32
+                }
+                TrackerState::Recovering => 250.0, // wider re-acquisition window
+                TrackerState::Searching => 400.0,  // wide initial search
+            };
+
+            if dist_from_last < max_jump || candidate.confirm_count == 0 {
                 candidate.px = cx;
                 candidate.py = cy;
                 candidate.radius = radius;
                 candidate.confirm_count += 1;
             } else {
-                // New position — reset but start counting from 1
-                candidate.px = cx;
-                candidate.py = cy;
-                candidate.radius = radius;
-                candidate.confirm_count = 1;
-                candidate.vel_y_history.clear();
+                // Too far from last position — if locked, ignore this blob.
+                // If searching/recovering, reset to this new position.
+                match candidate.state {
+                    TrackerState::Locked => {
+                        // Refuse the jump — hold last known position
+                        if let Some(ref last) = last_ball {
+                            if now_ms.saturating_sub(last.last_seen_ms) < BALL_LOST_TIMEOUT_MS {
+                                return Ok(Some(last.clone()));
+                            }
+                        }
+                        // Timed out — go to recovering
+                        candidate.state = TrackerState::Recovering;
+                        candidate.lost_at_ms = now_ms;
+                        candidate.confirm_count = 0;
+                        return Ok(None);
+                    }
+                    _ => {
+                        candidate.px = cx;
+                        candidate.py = cy;
+                        candidate.radius = radius;
+                        candidate.confirm_count = 1;
+                        candidate.vel_y_history.clear();
+                    }
+                }
             }
 
-            if candidate.confirm_count >= BALL_LOCK_CONFIRM_FRAMES {
-                // Velocity
+            let frames_needed = match candidate.state {
+                TrackerState::Searching => 3,  // strict initial lock — 3 frames
+                TrackerState::Recovering => 2, // faster re-acquisition
+                TrackerState::Locked => 1,     // already locked, stay locked
+            };
+
+            if candidate.confirm_count >= frames_needed {
+                // Transition to locked
+                candidate.state = TrackerState::Locked;
+                candidate.lock_frame_count += 1;
+                candidate.last_locked_radius = radius;
+
                 let (vel_x, vel_y) = if let Some(ref last) = last_ball {
                     let dt = (now_ms.saturating_sub(last.last_seen_ms)).max(1) as f32 / 1000.0;
                     ((cx - last.px) as f32 / dt, (cy - last.py) as f32 / dt)
@@ -449,15 +514,17 @@ fn detect_ball(
                     (0.0, 0.0)
                 };
 
-                // Smoothed velocity
                 candidate.vel_y_history.push(vel_y);
                 if candidate.vel_y_history.len() > 2 {
                     candidate.vel_y_history.remove(0);
                 }
-                let smooth_vel_y = candidate.vel_y_history.iter().sum::<f32>()
-                    / candidate.vel_y_history.len() as f32;
+                let smooth_vel_y = if candidate.vel_y_history.is_empty() {
+                    vel_y
+                } else {
+                    candidate.vel_y_history.iter().sum::<f32>()
+                        / candidate.vel_y_history.len() as f32
+                };
 
-                // Distance estimation
                 let pixel_diameter = (radius * 2) as f64;
                 let distance_inches = estimate_distance_inches(pixel_diameter);
                 let distance_ft = distance_inches / 12.0;
@@ -476,7 +543,7 @@ fn detect_ball(
                     smooth_vel_y,
                 }))
             } else {
-                // Still confirming — hold last if recent enough
+                // Still confirming — hold last if recent
                 if let Some(ref last) = last_ball {
                     if now_ms.saturating_sub(last.last_seen_ms) < BALL_LOST_TIMEOUT_MS {
                         return Ok(Some(last.clone()));
@@ -485,22 +552,46 @@ fn detect_ball(
                 Ok(None)
             }
         }
+
         None => {
-            candidate.confirm_count = 0;
-            candidate.vel_y_history.clear();
-            if let Some(ref last) = last_ball {
-                if now_ms.saturating_sub(last.last_seen_ms) < BALL_LOST_TIMEOUT_MS {
-                    return Ok(Some(last.clone()));
+            // No detection this frame
+            match candidate.state {
+                TrackerState::Locked => {
+                    // Was locked — start recovering
+                    candidate.state = TrackerState::Recovering;
+                    candidate.lost_at_ms = now_ms;
+                    candidate.confirm_count = 0;
+                    // Hold last position for the timeout window
+                    if let Some(ref last) = last_ball {
+                        if now_ms.saturating_sub(last.last_seen_ms) < BALL_LOST_TIMEOUT_MS {
+                            return Ok(Some(last.clone()));
+                        }
+                    }
+                    Ok(None)
+                }
+                TrackerState::Recovering => {
+                    // Still waiting for ball to return — hold nothing,
+                    // refuse to lock onto anything new (handled above by size check)
+                    candidate.vel_y_history.clear();
+                    Ok(None)
+                }
+                TrackerState::Searching => {
+                    candidate.confirm_count = 0;
+                    candidate.vel_y_history.clear();
+                    Ok(None)
                 }
             }
-            Ok(None)
         }
     }
 }
 
 // ── Draw overlays ─────────────────────────────────────────────────────
 
-fn draw_ball_overlay(frame: &mut Mat, ball: &Option<BallPosition>) -> Result<(), opencv::Error> {
+fn draw_ball_overlay(
+    frame: &mut Mat,
+    ball: &Option<BallPosition>,
+    tracker_state: &TrackerState,
+) -> Result<(), opencv::Error> {
     match ball {
         Some(ref b) => {
             // ── Thick circle around ball — hard to miss ───────────────
@@ -666,7 +757,7 @@ fn draw_ball_overlay(frame: &mut Mat, ball: &Option<BallPosition>) -> Result<(),
             // Green filled background when locked
             imgproc::rectangle(
                 frame,
-                opencv::core::Rect::new(5, 5, 200, 36),
+                opencv::core::Rect::new(5, 5, 220, 36),
                 Scalar::new(0.0, 140.0, 0.0, 0.0),
                 -1,
                 imgproc::LINE_AA,
@@ -674,7 +765,7 @@ fn draw_ball_overlay(frame: &mut Mat, ball: &Option<BallPosition>) -> Result<(),
             )?;
             imgproc::rectangle(
                 frame,
-                opencv::core::Rect::new(5, 5, 200, 36),
+                opencv::core::Rect::new(5, 5, 220, 36),
                 Scalar::new(0.0, 255.0, 0.0, 0.0),
                 2,
                 imgproc::LINE_AA,
@@ -707,6 +798,19 @@ fn draw_ball_overlay(frame: &mut Mat, ball: &Option<BallPosition>) -> Result<(),
             )?;
         }
         None => {
+            let (bg_color, border_color, msg) = match tracker_state {
+                TrackerState::Recovering => (
+                    Scalar::new(0.0, 80.0, 180.0, 0.0), // dark blue = recovering
+                    Scalar::new(0.0, 140.0, 255.0, 0.0),
+                    "WAITING FOR BALL...",
+                ),
+                _ => (
+                    Scalar::new(0.0, 0.0, 140.0, 0.0), // red = searching
+                    Scalar::new(0.0, 0.0, 220.0, 0.0),
+                    "SCANNING FOR BALL...",
+                ),
+            };
+
             // ── Red status bar when scanning ──────────────────────────
             imgproc::rectangle(
                 frame,
@@ -975,7 +1079,7 @@ fn process_heatmap_camera(
         if let Err(e) = draw_shot_dots(&mut frame, &shot_dots_snap) {
             eprintln!("Shot dots error: {}", e);
         }
-        if let Err(e) = draw_ball_overlay(&mut frame, &ball) {
+        if let Err(e) = draw_ball_overlay(&mut frame, &ball, &ball_candidate.state) {
             eprintln!("Ball overlay error: {}", e);
         }
         if let Err(e) = draw_legend(&mut frame) {
