@@ -3,7 +3,6 @@
 // Christopher Hong, Gondra Kelly, Matthew "god" Marguiles, Alfonso Mejia Vasquez, Carlos Orozco
 // C922x: single camera → two streams via v4l2loopback
 //   heatmap  → Rust OpenCV ball detection overlay → RTSP → MediaMTX
-//   basketball → raw frames via loopback → FFmpeg → RTSP → MediaMTX
 
 use base64::{engine::general_purpose, Engine as _};
 use opencv::{
@@ -21,8 +20,8 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 // ── Camera / frame tuning ─────────────────────────────────────────────
-const HEATMAP_DETECT_EVERY_N_FRAMES: u64 = 2;
-const JPEG_QUALITY_HEATMAP: i32 = 65;
+const HEATMAP_DETECT_EVERY_N_FRAMES: u64 = 1;
+const JPEG_QUALITY_HEATMAP: i32 = 75;
 
 // ── Ball HSV color range (tune at your venue) ─────────────────────────
 const BALL_H_MIN: f64 = 8.0;
@@ -982,33 +981,6 @@ fn process_heatmap_camera(
         .take()
         .expect("Failed to get heatmap stdin");
 
-    let mut ffmpeg_loop = std::process::Command::new("ffmpeg")
-        .args([
-            "-f",
-            "mjpeg",
-            "-framerate",
-            "60",
-            "-i",
-            "pipe:0",
-            "-vf",
-            "format=yuv420p",
-            "-pix_fmt",
-            "yuv420p",
-            "-f",
-            "v4l2",
-            "/dev/video10",
-        ])
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .expect("Failed to spawn FFmpeg loopback writer");
-
-    let mut ffmpeg_loop_stdin = ffmpeg_loop
-        .stdin
-        .take()
-        .expect("Failed to get loopback stdin");
-
     println!("C922x dual-stream started: heatmap + basketball @ 720p60");
     println!(
         "Focal length: {:.1} (CALIB_PIXEL_DIAMETER={:.0})",
@@ -1024,13 +996,6 @@ fn process_heatmap_camera(
         }
 
         local_count += 1;
-
-        // Push raw frame to loopback BEFORE overlays
-        let mut raw_buf = Vector::<u8>::new();
-        let raw_params = Vector::<i32>::from_slice(&[imgcodecs::IMWRITE_JPEG_QUALITY, 85]);
-        if imgcodecs::imencode(".jpg", &frame, &mut raw_buf, &raw_params).is_ok() {
-            let _ = ffmpeg_loop_stdin.write_all(&raw_buf.to_vec());
-        }
 
         // Ball detection every N frames
         let ball = if local_count % HEATMAP_DETECT_EVERY_N_FRAMES == 0 {
