@@ -43,3 +43,5 @@ Console commands:
 enable/disable simulation:
         simulateShots = true    => Starts fake shots every second
         simulateShots = false   => Stops simulation
+
+remove the basketball tracker
