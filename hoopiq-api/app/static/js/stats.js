@@ -240,7 +240,9 @@ async function updateStats() {
         setText('airballs', fmt(airballs));
 
         setText('players', fmt(h.current_players));
-        setText('avg-arc', b.avg_arc != null ? b.avg_arc + '°' : '--');
+        setText('avg-arc', b.avg_arc != null ? parseFloat(b.avg_arc).toFixed(1) + '°' : '--');
+        setText('last-arc', b.last_arc_angle != null ? parseFloat(b.last_arc_angle).toFixed(1) + '°' : '--');
+        setText('arc-shots', b.arc_shot_count != null ? b.arc_shot_count : '--');
         setText('avg-entry', b.avg_entry_angle != null ? b.avg_entry_angle + '°' : '--');
 
         const bPointsBadge = document.getElementById('b-points-badge');
@@ -252,7 +254,7 @@ async function updateStats() {
         // ── Visual Components ─────────────────────────
         if (typeof drawShotChart === 'function') drawShotChart(latestShots);
         if (typeof updateZones === 'function') updateZones(latestShots);
-        if (typeof updateArcTrend === 'function') updateArcTrend(b.avg_arc, b.avg_entry_angle);
+        if (typeof updateArcTrend === 'function') updateArcTrend(b.avg_arc, b.last_arc_angle, b.arc_shot_count);
 
         // ── Table ─────────────────────────────────────
         latestShots = shotsToRender;
