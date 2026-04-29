@@ -2,6 +2,10 @@
     Basketball Shot Tracker App
     Developed by Christopher Hong, Gondra Kelly
     Team Name: HoopIQ
+    Team Members: Christopher Hong, Alfonso Mejia Vasquez, Gondra Kelly, Matthew Margulies, Carlos Orozco
+    Start Web Development Date: October 2025
+    Finished Web Development Date: June 2026 (Ideally)
+    templates/index.html
 -->
 
 <!DOCTYPE html>
@@ -10,9 +14,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HoopIQ — Live Basketball Analytics</title>
-
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='3' y='4' width='12' height='9' rx='1' fill='%2300ff88'/%3E%3Cpolygon points='15,4 17,6 17,15 15,13' fill='%2300cc6a'/%3E%3Cpolygon points='3,13 15,13 17,15 5,15' fill='%23009955'/%3E%3Crect x='8' y='13' width='2' height='4' fill='%2300ff88'/%3E%3Cellipse cx='13' cy='18' rx='9' ry='3.5' fill='none' stroke='%2300ff88' stroke-width='2.2'/%3E%3Cline x1='5' y1='18' x2='6' y2='28' stroke='%2300ff88' stroke-width='1'/%3E%3Cline x1='8' y1='18' x2='8.5' y2='28' stroke='%2300ff88' stroke-width='1'/%3E%3Cline x1='11' y1='18' x2='11' y2='28' stroke='%2300ff88' stroke-width='1'/%3E%3Cline x1='14' y1='18' x2='13.5' y2='28' stroke='%2300ff88' stroke-width='1'/%3E%3Cline x1='17' y1='18' x2='16' y2='28' stroke='%2300ff88' stroke-width='1'/%3E%3Cline x1='20' y1='18' x2='18.5' y2='28' stroke='%2300ff88' stroke-width='1'/%3E%3Cline x1='5.2' y1='21' x2='19' y2='21' stroke='%2300ff88' stroke-width='0.7' opacity='0.55'/%3E%3Cline x1='5.6' y1='24' x2='18.2' y2='24' stroke='%2300ff88' stroke-width='0.7' opacity='0.55'/%3E%3Cline x1='6' y1='27' x2='17.5' y2='27' stroke='%2300ff88' stroke-width='0.7' opacity='0.55'/%3E%3Cpath d='M6 28 Q12 31 18.5 28' fill='none' stroke='%2300ff88' stroke-width='1'/%3E%3C/svg%3E">
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
     <style>
         :root {
             --green: #00ff88;
@@ -26,159 +29,359 @@
             --mono: 'IBM Plex Mono', monospace;
             --red: #ff4466;
             --orange: #ff8c00;
+            --cyan: #00e5ff;
         }
-
         * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: var(--mono); background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+        body::before { content:''; position:fixed; inset:0; background-image: linear-gradient(rgba(0,255,136,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,136,0.025) 1px, transparent 1px); background-size: 40px 40px; pointer-events:none; z-index:0; }
 
-        body {
+        /* ── Modal ── */
+        .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:200; align-items:center; justify-content:center; backdrop-filter:blur(6px); }
+        .modal-overlay.active { display:flex; }
+        .modal { background:var(--bg-card); border:1px solid var(--green-border); border-radius:12px; padding:40px; width:100%; max-width:420px; position:relative; }
+        .modal h2 { font-weight:700; font-size:1.8em; color:var(--green); margin-bottom:4px; }
+        .modal-sub { font-size:0.7em; color:var(--text-dim); margin-bottom:28px; letter-spacing:0.06em; }
+        .modal-tabs { display:flex; gap:4px; margin-bottom:24px; background:var(--bg); border-radius:6px; padding:4px; }
+        .modal-tab { flex:1; padding:8px; text-align:center; font-family:var(--mono); font-size:0.78em; color:var(--text-dim); cursor:pointer; border-radius:4px; transition:all 0.2s; letter-spacing:0.06em; border:none; background:none; }
+        .modal-tab.active { background:var(--green); color:#000; font-weight:700; }
+        .form-group { margin-bottom:16px; }
+        .form-group label { display:block; font-size:0.7em; color:var(--text-dim); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px; }
+        .form-group input { width:100%; background:var(--bg); border:1px solid var(--green-border); border-radius:6px; padding:10px 14px; font-family:var(--mono); font-size:0.85em; color:var(--text); outline:none; transition:border-color 0.2s; }
+        .form-group input:focus { border-color:var(--green); }
+        .btn-primary { width:100%; padding:12px; background:var(--green); border:none; border-radius:6px; font-family:var(--mono); font-size:0.85em; font-weight:700; color:#000; cursor:pointer; letter-spacing:0.08em; margin-top:8px; transition:background 0.2s,transform 0.1s; }
+        .btn-primary:hover { background:var(--green-dim); }
+        .btn-primary:active { transform:scale(0.98); }
+        .modal-error { font-size:0.72em; color:var(--red); margin-top:12px; text-align:center; min-height:16px; }
+        .modal-close { position:absolute; top:16px; right:16px; background:none; border:none; color:var(--text-dim); font-size:1.2em; cursor:pointer; padding:4px 8px; border-radius:4px; }
+        .modal-close:hover { color:var(--text); }
+
+        /* ── Layout ── */
+        .container { position:relative; z-index:1; max-width:1500px; margin:0 auto; padding:28px 24px; }
+        header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:28px; padding-bottom:20px; border-bottom:1px solid var(--green-border); }
+        .logo-block h1 { font-weight:700; font-size:2em; letter-spacing:-0.03em; color:var(--green); line-height:1; }
+        .logo-block .team-names { font-size:0.65em; color:var(--text-dim); letter-spacing:0.04em; margin-top:4px; }
+        .logo-block .subtitle { font-size:0.68em; color:var(--text-dim); letter-spacing:0.08em; margin-top:2px; }
+        .header-right { display:flex; align-items:center; gap:14px; }
+        .system-status { display:flex; align-items:center; gap:8px; font-size:0.82em; color:var(--text-dim); }
+        .status-dot { width:9px; height:9px; border-radius:50%; background:var(--red); flex-shrink:0; transition:background 0.3s; }
+        .status-dot.online { background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s ease-in-out infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        #status-text { color:var(--text); }
+        .auth-buttons { display:flex; gap:8px; }
+        .btn-auth { font-family:var(--mono); font-size:0.73em; letter-spacing:0.06em; padding:6px 13px; border-radius:5px; cursor:pointer; transition:all 0.2s; border:1px solid var(--green-border); }
+        .btn-login { background:none; color:var(--text-dim); }
+        .btn-login:hover { color:var(--text); border-color:var(--green-dim); }
+        .btn-register { background:var(--green); color:#000; border-color:var(--green); font-weight:700; }
+        .btn-register:hover { background:var(--green-dim); }
+        .btn-logout { background:none; color:var(--text-dim); border:1px solid var(--green-border); font-family:var(--mono); font-size:0.73em; letter-spacing:0.06em; padding:6px 13px; border-radius:5px; cursor:pointer; }
+        .btn-logout:hover { color:var(--red); border-color:rgba(255,68,102,0.4); }
+        .user-greeting { font-size:0.78em; color:var(--green); letter-spacing:0.04em; }
+
+        /* ── Shot Table ───────────────────────────── */
+        .table-card {
+            background: var(--bg-card);
+            border: 1px solid var(--green-border);
+            border-radius: 10px;
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+        
+        .table-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--green-border);
+        }
+        
+        .table-title {
+            font-size: 0.75em;
+            color: var(--green);
+            letter-spacing: 0.06em;
+        }
+
+        .session-warning {
+            font-size: 0.7em;
+            color: var(--orange);
+            background: rgba(255, 140, 0, 0.08);
+            border: 1px solid rgba(255, 140, 0, 0.25);
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin: 10px 12px 0 12px;
+            letter-spacing: 0.04em;
+        }
+        
+        .table-body {
+            padding: 12px;
+            overflow-x: auto;
+        }
+
+        .table-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        
+        .table-actions {
+          display: flex;
+          gap: 10px;
+        }
+        
+        .table-actions button {
             font-family: var(--mono);
-            background: var(--bg);
+            font-size: 0.7em;
+            letter-spacing: 0.06em;
+            padding: 6px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            background: none;
+            color: var(--text-dim);
+            border: 1px solid var(--green-border);
+            transition: all 0.2s;
+        }
+
+        .table-actions button:hover {
+            color: var(--green);
+            border-color: var(--green-dim);
+        }
+        
+        #shot-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.75em;
+            text-align: center;
+            font-family: var(--mono);
+        }
+        
+        #shot-table th {
+            color: var(--green);
+            font-size: 1em;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 10px 8px;
+            border-bottom: 1px solid var(--green-border);
+        }
+        
+        #shot-table td {
             color: var(--text);
-            min-height: 100vh;
+            font-size: 0.9em;
+            padding: 10px 8px;
+            border-bottom: 1px solid rgba(0,255,136,0.08);
         }
 
-        .container {
-            max-width:1500px;
-            margin:0 auto;
-            padding:28px 24px;
+        #shot-table td.make {
+            color: var(--green);
         }
 
-        /* Layout */
-        .section-label {
-            font-size:0.65em;
-            color:var(--text-dim);
-            letter-spacing:0.12em;
-            text-transform:uppercase;
-            margin-bottom:10px;
+        #shot-table td.miss {
+            color: var(--red);
         }
 
-        /* Stats grid */
-        .row1 {
-            display:grid;
-            grid-template-columns:repeat(6,1fr);
-            gap:10px;
-            margin-bottom:10px;
+        #shot-table td.swish {
+            color: var(--green);
         }
 
-        .row3 {
-            display:grid;
-            grid-template-columns:repeat(3,1fr);
-            gap:10px;
-            margin-bottom:16px;
+        #shot-table tr:nth-child(even) td {
+            background: rgba(0,255,136,0.02);
+        }
+        
+        #shot-table tr:hover {
+            background: rgba(0,255,136,0.08);
+            transition: background 0.2s ease;
         }
 
-        /* Stream layout (FIXED) */
-        .bottom-grid {
-            display:grid;
-            grid-template-columns:1fr;
-            gap:16px;
-            margin-bottom:16px;
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        .page-numbers button {
+            padding: 5px 10px;
+            border: 1px solid #ccc;
+            background: #1e1e1e;
+            color: white;
+            cursor: pointer;
+        }
+        
+        .page-numbers button.active-page {
+            background: #4CAF50;
+            font-weight: bold;
+        }
+        
+        .page-numbers button:hover {
+            background: #333;
         }
 
-        /* Charts */
-        .charts-row {
-            display:grid;
-            grid-template-columns:1fr 1fr;
-            gap:16px;
-            margin-bottom:20px;
-        }
+        /* ── Section label ── */
+        .section-label { font-size:0.65em; color:var(--text-dim); letter-spacing:0.12em; text-transform:uppercase; margin-bottom:10px; padding-left:2px; }
 
-        /* Responsive */
-        @media (max-width:900px) {
-            .charts-row { grid-template-columns:1fr; }
-            .row1 { grid-template-columns:repeat(3,1fr); }
-        }
+        /* ── Row 1: Primary Shot Stats (6 cards) ── */
+        .row1 { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:10px; }
 
-        @media (max-width:600px) {
-            .row1 { grid-template-columns:repeat(2,1fr); }
-        }
+        .stat-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:8px; padding:14px 12px; text-align:center; transition:border-color 0.2s, background 0.2s; }
+        .stat-card:hover { border-color:var(--green-dim); background:var(--bg-card2); }
+        .stat-card .lbl { font-size:0.6em; color:var(--text-dim); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px; }
+        .stat-card .val { font-size:1.65em; color:var(--green); line-height:1; font-weight:500; }
+        .stat-card .val.pct { font-size:1.4em; }
+        .stat-card .val.dim { color:var(--text-dim); }
+        .stat-card .val.orange { color:var(--orange); }
+        .stat-card .val.cyan { color:var(--cyan); font-size:1.4em; }
+        .stat-card .val.small { font-size:1.1em; }
 
+        /* ── Bottom section ── */
+        .bottom-grid { display:grid; grid-template-columns:1fr; gap:16px; margin-bottom:16px; }
+
+        /* ── Stream cards ── */
+        .stream-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:10px; overflow:hidden; }
+        .stream-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--green-border); }
+        .cam-label { font-size:0.75em; color:var(--green); letter-spacing:0.06em; }
+        .badge { font-size:0.68em; color:var(--text-dim); background:rgba(0,255,136,0.07); border:1px solid var(--green-border); padding:3px 8px; border-radius:4px; }
+        .stream-body { position:relative; background:#000; aspect-ratio:16/9; overflow:hidden; }
+        .stream-body video { width:100%; height:100%; object-fit:cover; display:block; opacity:0; transition:opacity 0.4s; }
+        .stream-body video.loaded { opacity:1; }
+        .stream-placeholder { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; color:var(--text-dim); font-size:0.78em; transition:opacity 0.3s; }
+        .stream-placeholder.hidden { opacity:0; pointer-events:none; }
+        .court-svg { width:110px; height:74px; }
+        .court-line { stroke:var(--green); stroke-width:1.5; fill:none; stroke-dasharray:300; stroke-dashoffset:300; animation:draw 2s ease forwards infinite; }
+        .court-line:nth-child(2) { animation-delay:0.3s; stroke-dasharray:100; stroke-dashoffset:100; }
+        .court-line:nth-child(3) { animation-delay:0.6s; stroke-dasharray:150; stroke-dashoffset:150; }
+        .court-line:nth-child(4) { animation-delay:0.9s; stroke-dasharray:80; stroke-dashoffset:80; }
+        @keyframes draw { 0%{stroke-dashoffset:300;opacity:1} 60%{stroke-dashoffset:0;opacity:1} 80%{stroke-dashoffset:0;opacity:1} 100%{stroke-dashoffset:0;opacity:0} }
+        .court-label { letter-spacing:0.1em; animation:blink 1.5s ease-in-out infinite; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        .stream-error { display:none; position:absolute; bottom:0; left:0; right:0; background:rgba(255,68,102,0.12); border-top:1px solid rgba(255,68,102,0.35); color:#ff6680; font-size:0.68em; padding:7px 14px; text-align:center; }
+
+        /* ── Shot Chart ── */
+        .chart-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:10px; overflow:hidden; }
+        .chart-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--green-border); }
+        .chart-title { font-size:0.75em; color:var(--green); letter-spacing:0.06em; }
+        .chart-body { padding:16px; position:relative; }
+        #shot-chart-canvas { width:100%; border-radius:4px; }
+
+        /* ── Charts Row ── */
+        .charts-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
+
+        /* ── Makes vs Misses ── */
+        .arc-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:10px; overflow:hidden; }
+        .arc-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--green-border); }
+        .arc-title { font-size:0.75em; color:var(--green); letter-spacing:0.06em; }
+        .arc-body { padding:16px; }
+        #arc-canvas { width:100%; border-radius:4px; }
+
+        /* ── Shot Type indicator ── */
+        .last-shot-badge { display:inline-block; font-size:0.68em; padding:3px 10px; border-radius:4px; border:1px solid var(--green-border); background:rgba(0,255,136,0.07); color:var(--green); letter-spacing:0.06em; margin-top:4px; }
+        .last-shot-badge.swish { border-color:rgba(0,229,255,0.4); background:rgba(0,229,255,0.07); color:var(--cyan); }
+        .last-shot-badge.make { border-color:rgba(255,140,0,0.4); background:rgba(255,140,0,0.07); color:var(--orange); }
+        .last-shot-badge.miss { border-color:rgba(255,68,102,0.3); background:rgba(255,68,102,0.06); color:var(--red); }
+
+        /* ── Footer ── */
+        footer { border-top:1px solid var(--green-border); padding-top:16px; display:flex; justify-content:space-between; align-items:center; font-size:0.68em; color:var(--text-dim); flex-wrap:wrap; gap:8px; }
+
+        /* ── Responsive ── */
+        @media (max-width:1200px) { .row1 { grid-template-columns:repeat(3,1fr); } }
+        @media (max-width:900px) { .row1 { grid-template-columns:repeat(3,1fr); } .bottom-grid { grid-template-columns:1fr; } .charts-row { grid-template-columns:1fr; } }
+        @media (max-width:700px) { .row1 { grid-template-columns:repeat(2,1fr); } .bottom-grid { grid-template-columns:1fr; } .charts-row { grid-template-columns:1fr; } }
+        @media (max-width:480px) { .row1 { grid-template-columns:repeat(2,1fr); } .row3 { grid-template-columns:repeat(1,1fr); } }
     </style>
 </head>
-
 <body>
 
 <!-- Auth Modal -->
 {% include 'modal.html' %}
 
 <div class="container">
-
     <!-- Header -->
     {% include 'header.html' %}
 
     <!-- Shot Table -->
     {% include 'shot_table.html' %}
 
-    <!-- Shot Stats -->
+    <!-- Row 1: Primary Shot Stats -->
     {% include 'primary_stats.html' %}
 
-    <!-- Advanced -->
+    <!-- Row 3: Advanced -->
     {% include 'advanced_stats.html' %}
 
-    <!-- Live Feed -->
+    <!-- Bottom: Streams -->
     {% include 'streams.html' %}
 
-    <!-- Charts -->
+    <!-- Charts Row -->
     {% include 'charts_row.html' %}
 
     <!-- Footer -->
     {% include 'footer.html' %}
-
 </div>
 
-<!-- Scripts -->
+<!-- Load authentication logic -->
 <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+
+<!-- Load stats logic -->
 <script src="{{ url_for('static', filename='js/stats.js') }}"></script>
+
+<!-- Load timers logic -->
 <script src="{{ url_for('static', filename='js/timers.js') }}"></script>
+
+<!-- Load shot chart logic -->
 <script src="{{ url_for('static', filename='js/shot_chart.js') }}"></script>
+
+<!-- Load arc chart logic -->
 <script src="{{ url_for('static', filename='js/arc_chart.js') }}"></script>
 
 <script>
-const MEDIAMTX = 'https://hoopiq.tail6a4dd0.ts.net';
+    const MEDIAMTX = 'https://hoopiq.tail6a4dd0.ts.net';
 
-async function startWebRTC(videoId, placeholderId, errorId, streamPath) {
-    const video = document.getElementById(videoId);
-    const placeholder = document.getElementById(placeholderId);
-    const error = document.getElementById(errorId);
-
-    if (!video) return;
-
-    const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-    });
-
-    pc.addTransceiver('video', { direction: 'recvonly' });
-
-    pc.ontrack = evt => {
-        video.srcObject = evt.streams[0];
-        video.play().catch(()=>{});
-        video.classList.add('loaded');
-        placeholder?.classList.add('hidden');
-        if (error) error.style.display = 'none';
-    };
-
-    try {
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-
-        const resp = await fetch(`${MEDIAMTX}/${streamPath}/whep`, {
-            method:'POST',
-            headers:{'Content-Type':'application/sdp'},
-            body:pc.localDescription.sdp
-        });
-
-        await pc.setRemoteDescription({
-            type:'answer',
-            sdp:await resp.text()
-        });
-
-    } catch(e) {
-        if (error) error.style.display = 'block';
+    // ── WebRTC ────────────────────────────────────────────────────────
+    async function startWebRTC(videoId, placeholderId, errorId, streamPath) {
+        const video=document.getElementById(videoId), placeholder=document.getElementById(placeholderId), error=document.getElementById(errorId);
+        const pc = new RTCPeerConnection({
+    iceServers:[
+        {urls:'stun:stun.l.google.com:19302'},
+        {
+            urls:'turn:openrelay.metered.ca:80',
+            username:'openrelayproject',
+            credential:'openrelayproject'
+        },
+        {
+            urls:'turn:openrelay.metered.ca:443',
+            username:'openrelayproject',
+            credential:'openrelayproject'
+        }
+    ]
+});
+        pc.addTransceiver('video',{direction:'recvonly'});
+        pc.ontrack = evt => {
+            video.srcObject=evt.streams[0]; video.play().catch(()=>{});
+            video.classList.add('loaded'); placeholder.classList.add('hidden'); error.style.display='none';
+            if('requestVideoFrameCallback' in video) { video.requestVideoFrameCallback(function d(){ video.requestVideoFrameCallback(d); }); }
+        };
+        pc.oniceconnectionstatechange = () => {
+            if(pc.iceConnectionState==='failed'||pc.iceConnectionState==='disconnected') {
+                error.style.display='block';
+                setTimeout(()=>{ error.style.display='none'; startWebRTC(videoId,placeholderId,errorId,streamPath); }, 5000);
+            }
+        };
+        try {
+            const offer=await pc.createOffer(); await pc.setLocalDescription(offer);
+            await new Promise(r=>{ if(pc.iceGatheringState==='complete'){r();return;} pc.onicegatheringstatechange=()=>{ if(pc.iceGatheringState==='complete') r(); }; setTimeout(r,3000); });
+            const resp=await fetch(`${MEDIAMTX}/${streamPath}/whep`,{method:'POST',headers:{'Content-Type':'application/sdp'},body:pc.localDescription.sdp});
+            if(!resp.ok) throw new Error(`WHEP ${resp.status}`);
+            await pc.setRemoteDescription({type:'answer',sdp:await resp.text()});
+        } catch(e) {
+            error.style.display='block';
+            setTimeout(()=>{ error.style.display='none'; startWebRTC(videoId,placeholderId,errorId,streamPath); }, 5000);
+        }
     }
+
+    async function resetData() {
+    if (!confirm('Reset all shot data?')) return;
+    await fetch(`${CLOUD}/reset`, { method: 'POST' });
+    updateStats();
 }
+    
+    function setText(id, val) { const el=document.getElementById(id); if(el) el.textContent=val; }
 </script>
 
+<!-- Main Application Logic -->
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-
 </body>
 </html>
