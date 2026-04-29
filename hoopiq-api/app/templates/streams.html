@@ -8,36 +8,12 @@
     templates/streams.html
 -->
 
-<div class="section-label">Live Feeds &amp; Analytics</div>
+<div class="section-label">Live Feed</div>
 <div class="bottom-grid">
-
-    <!-- Basketball Stream -->
-    <div class="stream-card">
+    <div class="stream-card single-stream">
         <div class="stream-header">
             <span class="cam-label">BASKETBALL TRACKER</span>
-            <span class="badge" id="b-shots-badge">0 shots</span>
-        </div>
-        <div class="stream-body">
-            <video id="basketball-img" autoplay muted playsinline disableRemotePlayback></video>
-            <div class="stream-placeholder" id="basketball-placeholder">
-                <svg class="court-svg" viewBox="0 0 120 80">
-                    <rect class="court-line" x="5" y="5" width="110" height="70" rx="2"/>
-                    <circle class="court-line" cx="60" cy="40" r="15"/>
-                    <line class="court-line" x1="60" y1="5" x2="60" y2="75"/>
-                    <path class="court-line" d="M 20 5 Q 5 40 20 75"/>
-                </svg>
-                <span class="court-label">Connecting to stream...</span>
-            </div>
-            <div class="stream-error" id="basketball-error">Stream unavailable — Pi may be offline</div>
-        </div>
-    </div>
-
-    <!-- Heatmap Stream -->
-    <div class="stream-card">
-        <div class="stream-header">
-            <span class="cam-label">PLAYER HEATMAP</span>
             <span class="badge" id="h-players-badge">0 players</span>
-            <span class="badge" id="h-session-badge" style="margin-left:6px;">00:00:00</span>
         </div>
         <div class="stream-body">
             <video id="heatmap-img" autoplay muted playsinline disableRemotePlayback></video>
@@ -53,5 +29,4 @@
             <div class="stream-error" id="heatmap-error">Stream unavailable — Pi may be offline</div>
         </div>
     </div>
-
 </div>
