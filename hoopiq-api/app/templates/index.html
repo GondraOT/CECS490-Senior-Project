@@ -61,7 +61,7 @@
         .logo-block h1 { font-weight:700; font-size:2em; letter-spacing:-0.03em; color:var(--green); line-height:1; }
         .logo-block .team-names { font-size:0.65em; color:var(--text-dim); letter-spacing:0.04em; margin-top:4px; }
         .logo-block .subtitle { font-size:0.68em; color:var(--text-dim); letter-spacing:0.08em; margin-top:2px; }
-        .header-right { display:flex; align-items:center; gap:14px; }
+        .header-right { display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:flex-end; }
         .system-status { display:flex; align-items:center; gap:8px; font-size:0.82em; color:var(--text-dim); }
         .status-dot { width:9px; height:9px; border-radius:50%; background:var(--red); flex-shrink:0; transition:background 0.3s; }
         .status-dot.online { background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s ease-in-out infinite; }
@@ -85,12 +85,15 @@
             margin-bottom: 16px;
             overflow: hidden;
         }
-        
+
         .table-header {
             padding: 12px 16px;
             border-bottom: 1px solid var(--green-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-        
+
         .table-title {
             font-size: 0.75em;
             color: var(--green);
@@ -107,23 +110,17 @@
             margin: 10px 12px 0 12px;
             letter-spacing: 0.04em;
         }
-        
+
         .table-body {
             padding: 12px;
             overflow-x: auto;
         }
 
-        .table-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        
         .table-actions {
-          display: flex;
-          gap: 10px;
+            display: flex;
+            gap: 10px;
         }
-        
+
         .table-actions button {
             font-family: var(--mono);
             font-size: 0.7em;
@@ -141,7 +138,7 @@
             color: var(--green);
             border-color: var(--green-dim);
         }
-        
+
         #shot-table {
             width: 100%;
             border-collapse: collapse;
@@ -149,7 +146,7 @@
             text-align: center;
             font-family: var(--mono);
         }
-        
+
         #shot-table th {
             color: var(--green);
             font-size: 1em;
@@ -158,7 +155,7 @@
             padding: 10px 8px;
             border-bottom: 1px solid var(--green-border);
         }
-        
+
         #shot-table td {
             color: var(--text);
             font-size: 0.9em;
@@ -174,14 +171,10 @@
             color: var(--red);
         }
 
-        #shot-table td.swish {
-            color: var(--green);
-        }
-
         #shot-table tr:nth-child(even) td {
             background: rgba(0,255,136,0.02);
         }
-        
+
         #shot-table tr:hover {
             background: rgba(0,255,136,0.08);
             transition: background 0.2s ease;
@@ -194,7 +187,7 @@
             gap: 8px;
             margin-top: 10px;
         }
-        
+
         .page-numbers button {
             padding: 5px 10px;
             border: 1px solid #ccc;
@@ -202,12 +195,12 @@
             color: white;
             cursor: pointer;
         }
-        
+
         .page-numbers button.active-page {
             background: #4CAF50;
             font-weight: bold;
         }
-        
+
         .page-numbers button:hover {
             background: #333;
         }
@@ -215,12 +208,9 @@
         /* ── Section label ── */
         .section-label { font-size:0.65em; color:var(--text-dim); letter-spacing:0.12em; text-transform:uppercase; margin-bottom:10px; padding-left:2px; }
 
-        /* ── Row 1: Primary Shot Stats (7 cards) ── */
-        .row1 { display:grid; grid-template-columns:repeat(7,1fr); gap:10px; margin-bottom:10px; }
-
-        /* ── Row 2: Shot Type breakdown ── */
-       .row2 { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:10px; }
-
+        /* ── Stats rows ── */
+        .row1 { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:10px; }
+        .row3 { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px; }
 
         .stat-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:8px; padding:14px 12px; text-align:center; transition:border-color 0.2s, background 0.2s; }
         .stat-card:hover { border-color:var(--green-dim); background:var(--bg-card2); }
@@ -228,15 +218,13 @@
         .stat-card .val { font-size:1.65em; color:var(--green); line-height:1; font-weight:500; }
         .stat-card .val.pct { font-size:1.4em; }
         .stat-card .val.dim { color:var(--text-dim); }
-        .stat-card .val.orange { color:var(--orange); }
-        .stat-card .val.cyan { color:var(--cyan); font-size:1.4em; }
-        .stat-card .val.small { font-size:1.1em; }
 
         /* ── Bottom section ── */
-        .bottom-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+        .bottom-grid { display:grid; grid-template-columns:1fr; gap:16px; margin-bottom:16px; }
 
         /* ── Stream cards ── */
         .stream-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:10px; overflow:hidden; }
+        .stream-card.single-stream { max-width:900px; margin:0 auto; width:100%; }
         .stream-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--green-border); }
         .cam-label { font-size:0.75em; color:var(--green); letter-spacing:0.06em; }
         .badge { font-size:0.68em; color:var(--text-dim); background:rgba(0,255,136,0.07); border:1px solid var(--green-border); padding:3px 8px; border-radius:4px; }
@@ -265,45 +253,21 @@
         /* ── Charts Row ── */
         .charts-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
 
-        /* ── Makes vs Misses ── */
+        /* ── Right chart ── */
         .arc-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:10px; overflow:hidden; }
         .arc-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--green-border); }
         .arc-title { font-size:0.75em; color:var(--green); letter-spacing:0.06em; }
         .arc-body { padding:16px; }
         #arc-canvas { width:100%; border-radius:4px; }
 
-        /* ── Zone Accuracy ── */
-        .zone-card { background:var(--bg-card); border:1px solid var(--green-border); border-radius:10px; overflow:hidden; margin-bottom:16px; }
-        .zone-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--green-border); }
-        .zone-title { font-size:0.75em; color:var(--green); letter-spacing:0.06em; }
-        .zone-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; padding:16px; }
-        @media (max-width:700px) { .zone-grid { grid-template-columns:repeat(3,1fr); } }
-        @media (max-width:480px) { .zone-grid { grid-template-columns:repeat(2,1fr); } }
-        .zone-item { background:var(--bg-card2); border:1px solid var(--green-border); border-radius:8px; padding:12px 8px; text-align:center; transition:border-color 0.2s; }
-        .zone-item:hover { border-color:var(--green-dim); }
-        .zone-name { font-size:0.58em; color:var(--text-dim); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:8px; min-height:2.4em; display:flex; align-items:center; justify-content:center; }
-        .zone-pct { font-size:1.5em; font-weight:500; line-height:1; margin-bottom:4px; }
-        .zone-shots { font-size:0.6em; color:var(--text-dim); letter-spacing:0.06em; }
-        .zone-bar-track { height:4px; background:rgba(0,255,136,0.1); border-radius:2px; margin-top:8px; }
-        .zone-bar-fill { height:4px; border-radius:2px; transition:width 0.4s ease; }
-        .zone-hot { color:#ff8c00; }
-        .zone-warm { color:#00ff88; }
-        .zone-cold { color:#5a7a63; }
-
-        /* ── Shot Type indicator ── */
-        .last-shot-badge { display:inline-block; font-size:0.68em; padding:3px 10px; border-radius:4px; border:1px solid var(--green-border); background:rgba(0,255,136,0.07); color:var(--green); letter-spacing:0.06em; margin-top:4px; }
-        .last-shot-badge.swish { border-color:rgba(0,229,255,0.4); background:rgba(0,229,255,0.07); color:var(--cyan); }
-        .last-shot-badge.make { border-color:rgba(255,140,0,0.4); background:rgba(255,140,0,0.07); color:var(--orange); }
-        .last-shot-badge.miss { border-color:rgba(255,68,102,0.3); background:rgba(255,68,102,0.06); color:var(--red); }
-
         /* ── Footer ── */
         footer { border-top:1px solid var(--green-border); padding-top:16px; display:flex; justify-content:space-between; align-items:center; font-size:0.68em; color:var(--text-dim); flex-wrap:wrap; gap:8px; }
 
         /* ── Responsive ── */
-        @media (max-width:1200px) { .row1 { grid-template-columns:repeat(5,1fr); } .row2 { grid-template-columns:repeat(3,1fr); } }
-        @media (max-width:900px) { .row1 { grid-template-columns:repeat(3,1fr); } .row2 { grid-template-columns:repeat(2,1fr); } .row3 { grid-template-columns:repeat(3,1fr); } .bottom-grid { grid-template-columns:1fr 1fr; } }
-        @media (max-width:700px) { .row1 { grid-template-columns:repeat(3,1fr); } .row2 { grid-template-columns:repeat(2,1fr); } .bottom-grid { grid-template-columns:1fr; } .charts-row { grid-template-columns:1fr; } }
-        @media (max-width:480px) { .row1 { grid-template-columns:repeat(2,1fr); } .row2 { grid-template-columns:repeat(2,1fr); } .row3 { grid-template-columns:repeat(2,1fr); } }
+        @media (max-width:1200px) { .row1 { grid-template-columns:repeat(3,1fr); } }
+        @media (max-width:900px) { .row1 { grid-template-columns:repeat(3,1fr); } .bottom-grid { grid-template-columns:1fr; } .charts-row { grid-template-columns:1fr; } }
+        @media (max-width:700px) { .row1 { grid-template-columns:repeat(2,1fr); } .bottom-grid { grid-template-columns:1fr; } .charts-row { grid-template-columns:1fr; } }
+        @media (max-width:480px) { .row1 { grid-template-columns:repeat(2,1fr); } .row3 { grid-template-columns:repeat(1,1fr); } }
     </style>
 </head>
 <body>
@@ -318,20 +282,14 @@
     <!-- Shot Table -->
     {% include 'shot_table.html' %}
 
-    <!-- Row 1: Primary Shot Stats -->
+    <!-- Shot Stats -->
     {% include 'primary_stats.html' %}
 
-    <!-- Row 2: Shot Type Breakdown -->
-    {% include 'shot_breakdown.html' %}
-
-    <!-- Row 3: Advanced -->
+    <!-- Advanced -->
     {% include 'advanced_stats.html' %}
 
-    <!-- Bottom: Streams -->
+    <!-- Live Feed -->
     {% include 'streams.html' %}
-
-    <!-- Zone Accuracy -->
-    {% include 'zone_accuracy.html' %}
 
     <!-- Charts Row -->
     {% include 'charts_row.html' %}
@@ -352,64 +310,109 @@
 <!-- Load shot chart logic -->
 <script src="{{ url_for('static', filename='js/shot_chart.js') }}"></script>
 
-<!-- Load zone logic -->
-<script src="{{ url_for('static', filename='js/zone.js') }}"></script>
-
 <!-- Load arc chart logic -->
 <script src="{{ url_for('static', filename='js/arc_chart.js') }}"></script>
 
 <script>
     const MEDIAMTX = 'https://hoopiq.tail6a4dd0.ts.net';
 
-    // ── WebRTC ────────────────────────────────────────────────────────
     async function startWebRTC(videoId, placeholderId, errorId, streamPath) {
-        const video=document.getElementById(videoId), placeholder=document.getElementById(placeholderId), error=document.getElementById(errorId);
+        const video = document.getElementById(videoId);
+        const placeholder = document.getElementById(placeholderId);
+        const error = document.getElementById(errorId);
+
+        if (!video || !placeholder || !error) return;
+
         const pc = new RTCPeerConnection({
-    iceServers:[
-        {urls:'stun:stun.l.google.com:19302'},
-        {
-            urls:'turn:openrelay.metered.ca:80',
-            username:'openrelayproject',
-            credential:'openrelayproject'
-        },
-        {
-            urls:'turn:openrelay.metered.ca:443',
-            username:'openrelayproject',
-            credential:'openrelayproject'
-        }
-    ]
-});
-        pc.addTransceiver('video',{direction:'recvonly'});
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                {
+                    urls: 'turn:openrelay.metered.ca:80',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                },
+                {
+                    urls: 'turn:openrelay.metered.ca:443',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                }
+            ]
+        });
+
+        pc.addTransceiver('video', { direction: 'recvonly' });
+
         pc.ontrack = evt => {
-            video.srcObject=evt.streams[0]; video.play().catch(()=>{});
-            video.classList.add('loaded'); placeholder.classList.add('hidden'); error.style.display='none';
-            if('requestVideoFrameCallback' in video) { video.requestVideoFrameCallback(function d(){ video.requestVideoFrameCallback(d); }); }
-        };
-        pc.oniceconnectionstatechange = () => {
-            if(pc.iceConnectionState==='failed'||pc.iceConnectionState==='disconnected') {
-                error.style.display='block';
-                setTimeout(()=>{ error.style.display='none'; startWebRTC(videoId,placeholderId,errorId,streamPath); }, 5000);
+            video.srcObject = evt.streams[0];
+            video.play().catch(() => {});
+            video.classList.add('loaded');
+            placeholder.classList.add('hidden');
+            error.style.display = 'none';
+
+            if ('requestVideoFrameCallback' in video) {
+                video.requestVideoFrameCallback(function d() {
+                    video.requestVideoFrameCallback(d);
+                });
             }
         };
+
+        pc.oniceconnectionstatechange = () => {
+            if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+                error.style.display = 'block';
+                setTimeout(() => {
+                    error.style.display = 'none';
+                    startWebRTC(videoId, placeholderId, errorId, streamPath);
+                }, 5000);
+            }
+        };
+
         try {
-            const offer=await pc.createOffer(); await pc.setLocalDescription(offer);
-            await new Promise(r=>{ if(pc.iceGatheringState==='complete'){r();return;} pc.onicegatheringstatechange=()=>{ if(pc.iceGatheringState==='complete') r(); }; setTimeout(r,3000); });
-            const resp=await fetch(`${MEDIAMTX}/${streamPath}/whep`,{method:'POST',headers:{'Content-Type':'application/sdp'},body:pc.localDescription.sdp});
-            if(!resp.ok) throw new Error(`WHEP ${resp.status}`);
-            await pc.setRemoteDescription({type:'answer',sdp:await resp.text()});
-        } catch(e) {
-            error.style.display='block';
-            setTimeout(()=>{ error.style.display='none'; startWebRTC(videoId,placeholderId,errorId,streamPath); }, 5000);
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            await new Promise(r => {
+                if (pc.iceGatheringState === 'complete') {
+                    r();
+                    return;
+                }
+
+                pc.onicegatheringstatechange = () => {
+                    if (pc.iceGatheringState === 'complete') r();
+                };
+
+                setTimeout(r, 3000);
+            });
+
+            const resp = await fetch(`${MEDIAMTX}/${streamPath}/whep`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/sdp' },
+                body: pc.localDescription.sdp
+            });
+
+            if (!resp.ok) throw new Error(`WHEP ${resp.status}`);
+
+            await pc.setRemoteDescription({
+                type: 'answer',
+                sdp: await resp.text()
+            });
+        } catch (e) {
+            error.style.display = 'block';
+            setTimeout(() => {
+                error.style.display = 'none';
+                startWebRTC(videoId, placeholderId, errorId, streamPath);
+            }, 5000);
         }
     }
 
     async function resetData() {
-    if (!confirm('Reset all shot data?')) return;
-    await fetch(`${CLOUD}/reset`, { method: 'POST' });
-    updateStats();
-}
-    
-    function setText(id, val) { const el=document.getElementById(id); if(el) el.textContent=val; }
+        if (!confirm('Reset all shot data?')) return;
+        await fetch(`${CLOUD}/reset`, { method: 'POST' });
+        updateStats();
+    }
+
+    function setText(id, val) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val;
+    }
 </script>
 
 <!-- Main Application Logic -->
