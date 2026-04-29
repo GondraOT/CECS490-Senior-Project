@@ -43,5 +43,3 @@ Console commands:
 enable/disable simulation:
         simulateShots = true    => Starts fake shots every second
         simulateShots = false   => Stops simulation
-
-advance change player detected to ball detected
