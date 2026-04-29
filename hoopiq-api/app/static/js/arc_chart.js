@@ -4,75 +4,107 @@
    Team Members: Christopher Hong, Alfonso Mejia Vasquez, Gondra Kelly, Matthew Margulies, Carlos Orozco
    Start Web Development Date: October 2025
    Finished Web Development Date: June 2026 (Ideally)
-   static/js/arc_chart.js - Handles arc-based shot analysis
+   static/js/arc_chart.js - Handles shot activity over time
 */
 
-// ── Makes vs Misses Bar Chart ────────────────────────────────────
-function drawMakesVsMisses(shotData) {
+function drawShotTimeline(shotData) {
     const canvas = document.getElementById('arc-canvas');
+    if (!canvas) return;
+
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
-    const W = canvas.offsetWidth || 400, H = 180;
-    canvas.width = W * dpr; canvas.height = H * dpr;
+    const W = canvas.offsetWidth || 400;
+    const H = 220;
+
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
     canvas.style.height = H + 'px';
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, W, H);
 
-    const makes  = shotData.filter(s => s.made).length;
-    const misses = shotData.filter(s => !s.made).length;
-    const total  = makes + misses;
+    const padL = 42;
+    const padR = 20;
+    const padT = 22;
+    const padB = 36;
+    const innerW = W - padL - padR;
+    const innerH = H - padT - padB;
+    const baseline = padT + innerH / 2;
 
-    if (total === 0) {
+    ctx.strokeStyle = 'rgba(0,255,136,0.15)';
+    ctx.lineWidth = 1;
+
+    ctx.beginPath();
+    ctx.moveTo(padL, baseline);
+    ctx.lineTo(W - padR, baseline);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(padL, padT);
+    ctx.lineTo(padL, H - padB);
+    ctx.stroke();
+
+    ctx.font = '10px IBM Plex Mono';
+    ctx.fillStyle = 'rgba(0,255,136,0.45)';
+    ctx.textAlign = 'left';
+    ctx.fillText('Miss', 8, baseline + 18);
+    ctx.fillText('Make', 8, baseline - 10);
+
+    if (!shotData || shotData.length === 0) {
         ctx.fillStyle = 'rgba(90,122,99,0.6)';
-        ctx.font = '10px IBM Plex Mono'; ctx.textAlign = 'center';
-        ctx.fillText('No shots yet', W/2, H/2); return;
+        ctx.font = '10px IBM Plex Mono';
+        ctx.textAlign = 'center';
+        ctx.fillText('No shot activity yet', W / 2, H / 2);
+        return;
     }
 
-    const pad = 40, barW = (W - pad*2 - 20) / 2, maxH = H - 60;
-    const makeH  = (makes  / Math.max(makes, misses)) * maxH;
-    const missH  = (misses / Math.max(makes, misses)) * maxH;
-    const makeX  = pad, missX = pad + barW + 20;
-    const baseY  = H - 30;
+    const count = shotData.length;
+    const stepX = count > 1 ? innerW / (count - 1) : innerW / 2;
 
-    // Grid lines
-    ctx.strokeStyle = 'rgba(0,255,136,0.08)'; ctx.lineWidth = 1;
-    for (let i = 0; i <= 4; i++) {
-        const y = baseY - (i/4) * maxH;
-        ctx.beginPath(); ctx.moveTo(pad - 5, y); ctx.lineTo(W - pad + 5, y); ctx.stroke();
-        const val = Math.round((i/4) * Math.max(makes, misses));
-        ctx.fillStyle = 'rgba(0,255,136,0.35)'; ctx.font = '9px IBM Plex Mono';
-        ctx.textAlign = 'right'; ctx.fillText(val, pad - 8, y + 3);
-    }
+    ctx.fillStyle = 'rgba(0,255,136,0.35)';
+    ctx.textAlign = 'center';
+    ctx.fillText('Shot Sequence', W / 2, H - 10);
 
-    // Makes bar
-    const makeGrad = ctx.createLinearGradient(0, baseY - makeH, 0, baseY);
-    makeGrad.addColorStop(0, 'rgba(0,255,136,0.9)');
-    makeGrad.addColorStop(1, 'rgba(0,255,136,0.2)');
-    ctx.fillStyle = makeGrad;
     ctx.beginPath();
-    ctx.roundRect(makeX, baseY - makeH, barW, makeH, [4, 4, 0, 0]);
-    ctx.fill();
+    shotData.forEach((shot, i) => {
+        const x = padL + (count === 1 ? innerW / 2 : i * stepX);
+        const y = shot.made ? baseline - 42 : baseline + 42;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = 'rgba(0,255,136,0.2)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
 
-    // Misses bar
-    const missGrad = ctx.createLinearGradient(0, baseY - missH, 0, baseY);
-    missGrad.addColorStop(0, 'rgba(255,68,102,0.9)');
-    missGrad.addColorStop(1, 'rgba(255,68,102,0.2)');
-    ctx.fillStyle = missGrad;
-    ctx.beginPath();
-    ctx.roundRect(missX, baseY - missH, barW, missH, [4, 4, 0, 0]);
-    ctx.fill();
+    shotData.forEach((shot, i) => {
+        const x = padL + (count === 1 ? innerW / 2 : i * stepX);
+        const y = shot.made ? baseline - 42 : baseline + 42;
 
-    // Labels
-    ctx.textAlign = 'center'; ctx.font = '600 11px IBM Plex Mono';
-    ctx.fillStyle = '#00ff88';
-    ctx.fillText('MAKES', makeX + barW/2, baseY + 14);
-    ctx.fillText(makes, makeX + barW/2, baseY - makeH - 6);
-    ctx.fillStyle = '#ff4466';
-    ctx.fillText('MISSES', missX + barW/2, baseY + 14);
-    ctx.fillText(misses, missX + barW/2, baseY - missH - 6);
+        ctx.beginPath();
+        ctx.moveTo(x, baseline);
+        ctx.lineTo(x, y);
+        ctx.strokeStyle = shot.made ? 'rgba(0,255,136,0.25)' : 'rgba(255,68,102,0.25)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
 
-    // FG% center label
-    const fgPct = (makes / total * 100).toFixed(1);
-    ctx.fillStyle = 'rgba(0,255,136,0.5)'; ctx.font = '10px IBM Plex Mono';
-    ctx.fillText(fgPct + '% FG', W/2, baseY + 14);
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = shot.made ? 'rgba(0,255,136,0.9)' : 'rgba(255,68,102,0.85)';
+        ctx.fill();
+        ctx.strokeStyle = shot.made ? '#00ff88' : '#ff4466';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    });
+
+    ctx.fillStyle = 'rgba(0,255,136,0.35)';
+    ctx.font = '9px IBM Plex Mono';
+    ctx.textAlign = 'center';
+
+    const labelEvery = Math.max(1, Math.ceil(count / 8));
+    shotData.forEach((shot, i) => {
+        if (i % labelEvery !== 0 && i !== count - 1) return;
+        const x = padL + (count === 1 ? innerW / 2 : i * stepX);
+        ctx.fillText(String(i + 1), x, H - 20);
+    });
 }
