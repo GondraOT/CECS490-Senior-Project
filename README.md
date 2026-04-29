@@ -44,10 +44,4 @@ enable/disable simulation:
         simulateShots = true    => Starts fake shots every second
         simulateShots = false   => Stops simulation
 
-change table to have shot number, result, shot type, quality (backboard, swish, airball)
-change shot stats to makes, field goals, 2pt, 3pt, streak, airball
-remove shot type breakdown
 advance change player detected to ball detected
-remove basketball tracker, rename player heatmap to basketball tracker, move timer to top to become session timer and add shot count
-remove shot zone accuracy
-add empty graph for the makes and misses
