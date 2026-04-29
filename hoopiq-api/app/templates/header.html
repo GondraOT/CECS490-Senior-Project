@@ -14,11 +14,18 @@
         <div class="team-names">Christopher Hong &mdash; Gondra Kelly &mdash; Matthew Marguiles &mdash; Alfonso Mejia Vasquez &mdash; Carlos Orozco</div>
         <div class="subtitle">CECS490 SENIOR PROJECT</div>
     </div>
+
     <div class="header-right">
         <div class="system-status">
             <div class="status-dot" id="status-dot"></div>
             <span id="status-text">Connecting...</span>
         </div>
+
+        <div class="system-status">
+            <span style="color:var(--text-dim);">Session</span>
+            <span class="badge" id="session-timer-badge">00:00:00</span>
+        </div>
+
         <button id="reset-btn"
             onclick="resetData()"
             style="font-family:var(--mono);font-size:0.73em;letter-spacing:0.06em;
@@ -29,10 +36,12 @@
             onmouseout="this.style.color='var(--text-dim)';this.style.borderColor='var(--green-border)'">
             RESET
         </button>
+
         <div class="auth-buttons" id="auth-buttons">
             <button class="btn-auth btn-login" onclick="openModal('login')">LOGIN</button>
             <button class="btn-auth btn-register" onclick="openModal('register')">REGISTER</button>
         </div>
+
         <div id="user-info" style="display:none;align-items:center;gap:12px;">
             <span class="user-greeting" id="user-greeting"></span>
             <button class="btn-logout" onclick="handleLogout()">LOGOUT</button>
