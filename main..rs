@@ -42,31 +42,18 @@ const BALL_MIN_CIRCULARITY: f64 = 0.40;
 const BALL_MAX_ASPECT_DEVIATION: f32 = 0.50;
 
 // ── Monocular depth estimation ────────────────────────────────────────
-// A basketball has a fixed real-world diameter of 9.4 inches.
-// We use this known size to estimate distance from the camera.
-//
-// Formula: distance = (real_diameter × focal_length) / pixel_diameter
-//
-// ONE-TIME CALIBRATION:
-//   1. Hold ball exactly CALIB_DISTANCE_INCHES (36in = 3ft) from camera lens
-//   2. Run: ffmpeg -f v4l2 -i /dev/video0 -frames:v 1 /tmp/calib.jpg
-//   3. Open calib.jpg, measure ball diameter in pixels (left edge to right edge)
-//   4. Update CALIB_PIXEL_DIAMETER with that measurement
-//   5. Rebuild — works in any environment from then on
 const BALL_REAL_DIAMETER_INCHES: f64 = 9.4;
-const CALIB_DISTANCE_INCHES: f64 = 36.0; // 3 feet — hold ball here during calib
-const CALIB_PIXEL_DIAMETER: f64 = 124.0; // ← UPDATE AFTER CALIBRATION
+const CALIB_DISTANCE_INCHES: f64 = 36.0;
+const CALIB_PIXEL_DIAMETER: f64 = 124.0;
 
 // ── Shot zone threshold ───────────────────────────────────────────────
-// 3PT line is 23.75ft = 285 inches from basket in NBA.
-// Camera is placed near basket, so distance from camera ≈ distance from basket.
 const THREE_PT_DISTANCE_INCHES: f64 = 333.0;
 
 // ── Airball / shot release detection ─────────────────────────────────
-const SHOT_RELEASE_VEL_Y: f32 = -220.0; // px/s upward to count as release
-const SHOT_RELEASE_VEL_X_MAX: f32 = 300.0; // cap lateral speed (not a pass)
-const AIRBALL_WAIT_MS: u64 = 5000; // 5 second window for ESP32 response
-const AIRBALL_COOLDOWN_MS: u64 = 4000; // min gap between airball calls
+const SHOT_RELEASE_VEL_Y: f32 = -220.0;
+const SHOT_RELEASE_VEL_X_MAX: f32 = 300.0;
+const AIRBALL_WAIT_MS: u64 = 5000;
+const AIRBALL_COOLDOWN_MS: u64 = 4000;
 
 // ── Structs ───────────────────────────────────────────────────────────
 
@@ -110,16 +97,16 @@ struct BallPosition {
     distance_inches: f64,
     distance_ft: f64,
     is_three: bool,
-    vel_x: f32,        // pixels/second, positive = right
-    vel_y: f32,        // pixels/second, negative = moving up in frame
-    smooth_vel_y: f32, // ← ADD: averaged over last N frames
+    vel_x: f32,
+    vel_y: f32,
+    smooth_vel_y: f32,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 enum TrackerState {
-    Searching,  // never had a lock — accept first good detection
-    Locked,     // actively tracking the ball
-    Recovering, // had lock, ball left frame — wait for it to return, reject everything else
+    Searching,
+    Locked,
+    Recovering,
 }
 
 impl Default for TrackerState {
@@ -136,9 +123,9 @@ struct BallCandidate {
     confirm_count: u32,
     vel_y_history: Vec<f32>,
     state: TrackerState,
-    lost_at_ms: u64,         // when lock was lost
-    last_locked_radius: i32, // radius when last locked — used for re-acquisition
-    lock_frame_count: u32,   // total frames locked — if high, we're confident
+    lost_at_ms: u64,
+    last_locked_radius: i32,
+    lock_frame_count: u32,
 }
 
 struct FrameStore {
@@ -177,6 +164,14 @@ struct GameState {
     pending_zone: Option<bool>,
     airball_count: u32,
     last_serial_event_ms: u64,
+    // ── Arc / trajectory tracking ─────────────────────────────────────
+    arc_buffer: Vec<(i32, i32)>, // (px, py) positions during shot flight
+    arc_recording: bool,         // true = currently recording a shot arc
+    avg_arc_angle: f32,          // launch angle rolling average (degrees)
+    arc_shot_count: u32,         // shots with valid arc data
+    last_arc_angle: f32,         // most recent launch angle
+    avg_entry_angle: f32,        // entry angle rolling average (degrees)
+    last_entry_angle: f32,       // most recent entry angle
 }
 
 impl GameState {
@@ -203,6 +198,13 @@ impl GameState {
             pending_zone: None,
             airball_count: 0,
             last_serial_event_ms: 0,
+            arc_buffer: Vec::new(),
+            arc_recording: false,
+            avg_arc_angle: 0.0,
+            arc_shot_count: 0,
+            last_arc_angle: 0.0,
+            avg_entry_angle: 0.0,
+            last_entry_angle: 0.0,
         }
     }
 
@@ -291,7 +293,7 @@ impl GameState {
             Some(self.make_count as f32 / a as f32 * 100.0)
         }
     }
-} // ← closes impl GameState
+}
 
 // ── Distance estimation ───────────────────────────────────────────────
 
@@ -314,8 +316,120 @@ fn estimate_distance_inches(pixel_diameter: f64) -> f64 {
 }
 
 fn distance_to_zone(distance_inches: f64) -> bool {
-    // true = 3PT, false = 2PT
     distance_inches >= THREE_PT_DISTANCE_INCHES
+}
+
+// ── Arc angle computation ─────────────────────────────────────────────
+//
+// Launch angle: angle of the ball's trajectory at release point.
+// Measured from release position to the peak of the arc.
+// A textbook basketball shot is 45–55°.
+//
+fn compute_arc_angle(arc_buffer: &[(i32, i32)]) -> Option<f32> {
+    if arc_buffer.len() < 5 {
+        return None;
+    }
+
+    let release = arc_buffer.first()?;
+
+    // Peak = frame with minimum py value (highest point in image)
+    let peak_py = arc_buffer.iter().map(|p| p.1).min()?;
+    let peak_px = arc_buffer.iter().find(|p| p.1 == peak_py).map(|p| p.0)?;
+
+    let dx = (peak_px - release.0).abs() as f32;
+    let dy = (release.1 - peak_py) as f32; // positive = ball moved up
+
+    if dx < 5.0 {
+        return None;
+    }
+
+    let angle_deg = (dy / dx).atan().to_degrees();
+
+    // Valid basketball launch angle range
+    if angle_deg < 20.0 || angle_deg > 80.0 {
+        return None;
+    }
+
+    Some(angle_deg)
+}
+
+// ── Entry angle computation ───────────────────────────────────────────
+//
+// Entry angle: angle at which the ball descends into the basket.
+// Measured from the peak of the arc to the end of the recorded trajectory.
+// Higher entry angle (>45°) = steeper drop = easier to make (larger effective
+// basket opening). NBA optimal entry is ~45°.
+//
+fn compute_entry_angle(arc_buffer: &[(i32, i32)]) -> Option<f32> {
+    if arc_buffer.len() < 8 {
+        return None;
+    }
+
+    // Find peak index (minimum py = highest point in frame)
+    let peak_py = arc_buffer.iter().map(|p| p.1).min()?;
+    let peak_idx = arc_buffer.iter().position(|p| p.1 == peak_py)?;
+
+    // Need at least 4 points after the peak to compute descent angle
+    let descent = &arc_buffer[peak_idx..];
+    if descent.len() < 4 {
+        return None;
+    }
+
+    // Use first and last points of the descent for the angle
+    let top = descent.first()?;
+    let bottom = descent.last()?;
+
+    let dx = (bottom.0 - top.0).abs() as f32;
+    let dy = (bottom.1 - top.1) as f32; // positive = ball moving down in frame
+
+    if dx < 5.0 || dy < 5.0 {
+        return None;
+    } // must be actually descending
+
+    // Entry angle = atan(vertical drop / horizontal travel) during descent
+    let angle_deg = (dy / dx).atan().to_degrees();
+
+    // Valid entry angle range for a basketball shot
+    if angle_deg < 20.0 || angle_deg > 80.0 {
+        return None;
+    }
+
+    Some(angle_deg)
+}
+
+// ── Shared arc computation helper ─────────────────────────────────────
+//
+// Called from both MAKE and SWISH handlers to avoid code duplication.
+// Updates arc_angle, entry_angle, and rolling averages in GameState.
+//
+fn process_arc(s: &mut GameState) {
+    s.arc_recording = false;
+
+    // Compute launch angle
+    if let Some(arc_angle) = compute_arc_angle(&s.arc_buffer) {
+        s.last_arc_angle = arc_angle;
+        s.arc_shot_count += 1;
+        // Welford online rolling average — stable and accurate
+        s.avg_arc_angle += (arc_angle - s.avg_arc_angle) / s.arc_shot_count as f32;
+        println!(
+            "Launch angle: {:.1}°  avg: {:.1}°",
+            arc_angle, s.avg_arc_angle
+        );
+    }
+
+    // Compute entry angle (descent into basket)
+    if let Some(entry_angle) = compute_entry_angle(&s.arc_buffer) {
+        s.last_entry_angle = entry_angle;
+        // Use same shot count denominator as arc so averages stay in sync
+        let count = s.arc_shot_count.max(1) as f32;
+        s.avg_entry_angle += (entry_angle - s.avg_entry_angle) / count;
+        println!(
+            "Entry angle:  {:.1}°  avg: {:.1}°",
+            entry_angle, s.avg_entry_angle
+        );
+    }
+
+    s.arc_buffer.clear();
 }
 
 // ── Ball detection ────────────────────────────────────────────────────
@@ -327,7 +441,6 @@ fn detect_ball(
 ) -> Result<Option<BallPosition>, opencv::Error> {
     let now_ms = get_timestamp();
 
-    // ── HSV threshold ─────────────────────────────────────────────────
     let mut hsv = Mat::default();
     imgproc::cvt_color(frame, &mut hsv, imgproc::COLOR_BGR2HSV, 0)?;
 
@@ -336,7 +449,6 @@ fn detect_ball(
     let mut mask = Mat::default();
     core::in_range(&hsv, &lower, &upper, &mut mask)?;
 
-    // ── Morphology ────────────────────────────────────────────────────
     let k_small = imgproc::get_structuring_element(
         imgproc::MORPH_ELLIPSE,
         Size::new(3, 3),
@@ -370,7 +482,6 @@ fn detect_ball(
         core::Scalar::default(),
     )?;
 
-    // ── Find contours ─────────────────────────────────────────────────
     let mut contours = Vector::<Vector<Point>>::new();
     imgproc::find_contours(
         &closed,
@@ -380,7 +491,6 @@ fn detect_ball(
         Point::new(0, 0),
     )?;
 
-    // ── Score all candidates ──────────────────────────────────────────
     let mut best: Option<(f64, i32, i32, i32)> = None;
 
     for i in 0..contours.len() {
@@ -406,30 +516,24 @@ fn detect_ball(
         let aspect = rect.width as f64 / rect.height.max(1) as f64;
         let aspect_score = 1.0 - (aspect - 1.0).abs().min(1.0);
 
-        // ── RECOVERING: only accept blobs similar in size to last lock ─
         if candidate.state == TrackerState::Recovering {
             let expected = candidate.last_locked_radius as f64;
             let size_diff = (radius as f64 - expected).abs() / expected;
-            // Must be within 40% of last known ball size to re-acquire
             if size_diff > 0.40 {
                 continue;
             }
-            // Must be reasonably circular to re-acquire
             if circularity < 0.35 {
                 continue;
             }
         }
 
-        // ── SEARCHING: stricter initial lock requirements ──────────────
         if candidate.state == TrackerState::Searching {
-            // Require decent circularity before first lock
             if circularity < 0.30 {
                 continue;
             }
         }
 
         let score = area * circularity * aspect_score;
-
         if best.is_none() || score > best.unwrap().0 {
             let cx = rect.x + rect.width / 2;
             let cy = rect.y + rect.height / 2;
@@ -437,7 +541,6 @@ fn detect_ball(
         }
     }
 
-    // ── State machine ─────────────────────────────────────────────────
     match best {
         Some((_, cx, cy, radius)) => {
             let dist_from_last = {
@@ -446,20 +549,16 @@ fn detect_ball(
                 ((dx * dx + dy * dy) as f32).sqrt()
             };
 
-            // If locked and new detection is far away — suspect it's
-            // a different object, not the ball jumping across the frame.
-            // Only allow large jumps if ball was moving fast (high velocity).
             let max_jump = match candidate.state {
                 TrackerState::Locked => {
                     let speed = last_ball
                         .as_ref()
                         .map(|b| (b.vel_x.abs() + b.vel_y.abs()))
                         .unwrap_or(0.0);
-                    // Allow larger jump if ball was already moving fast
                     (150.0 + speed * 0.1).min(400.0) as f32
                 }
-                TrackerState::Recovering => 250.0, // wider re-acquisition window
-                TrackerState::Searching => 400.0,  // wide initial search
+                TrackerState::Recovering => 250.0,
+                TrackerState::Searching => 400.0,
             };
 
             if dist_from_last < max_jump || candidate.confirm_count == 0 {
@@ -468,17 +567,13 @@ fn detect_ball(
                 candidate.radius = radius;
                 candidate.confirm_count += 1;
             } else {
-                // Too far from last position — if locked, ignore this blob.
-                // If searching/recovering, reset to this new position.
                 match candidate.state {
                     TrackerState::Locked => {
-                        // Refuse the jump — hold last known position
                         if let Some(ref last) = last_ball {
                             if now_ms.saturating_sub(last.last_seen_ms) < BALL_LOST_TIMEOUT_MS {
                                 return Ok(Some(last.clone()));
                             }
                         }
-                        // Timed out — go to recovering
                         candidate.state = TrackerState::Recovering;
                         candidate.lost_at_ms = now_ms;
                         candidate.confirm_count = 0;
@@ -495,13 +590,12 @@ fn detect_ball(
             }
 
             let frames_needed = match candidate.state {
-                TrackerState::Searching => 3,  // strict initial lock — 3 frames
-                TrackerState::Recovering => 2, // faster re-acquisition
-                TrackerState::Locked => 1,     // already locked, stay locked
+                TrackerState::Searching => 3,
+                TrackerState::Recovering => 2,
+                TrackerState::Locked => 1,
             };
 
             if candidate.confirm_count >= frames_needed {
-                // Transition to locked
                 candidate.state = TrackerState::Locked;
                 candidate.lock_frame_count += 1;
                 candidate.last_locked_radius = radius;
@@ -542,7 +636,6 @@ fn detect_ball(
                     smooth_vel_y,
                 }))
             } else {
-                // Still confirming — hold last if recent
                 if let Some(ref last) = last_ball {
                     if now_ms.saturating_sub(last.last_seen_ms) < BALL_LOST_TIMEOUT_MS {
                         return Ok(Some(last.clone()));
@@ -552,35 +645,28 @@ fn detect_ball(
             }
         }
 
-        None => {
-            // No detection this frame
-            match candidate.state {
-                TrackerState::Locked => {
-                    // Was locked — start recovering
-                    candidate.state = TrackerState::Recovering;
-                    candidate.lost_at_ms = now_ms;
-                    candidate.confirm_count = 0;
-                    // Hold last position for the timeout window
-                    if let Some(ref last) = last_ball {
-                        if now_ms.saturating_sub(last.last_seen_ms) < BALL_LOST_TIMEOUT_MS {
-                            return Ok(Some(last.clone()));
-                        }
+        None => match candidate.state {
+            TrackerState::Locked => {
+                candidate.state = TrackerState::Recovering;
+                candidate.lost_at_ms = now_ms;
+                candidate.confirm_count = 0;
+                if let Some(ref last) = last_ball {
+                    if now_ms.saturating_sub(last.last_seen_ms) < BALL_LOST_TIMEOUT_MS {
+                        return Ok(Some(last.clone()));
                     }
-                    Ok(None)
                 }
-                TrackerState::Recovering => {
-                    // Still waiting for ball to return — hold nothing,
-                    // refuse to lock onto anything new (handled above by size check)
-                    candidate.vel_y_history.clear();
-                    Ok(None)
-                }
-                TrackerState::Searching => {
-                    candidate.confirm_count = 0;
-                    candidate.vel_y_history.clear();
-                    Ok(None)
-                }
+                Ok(None)
             }
-        }
+            TrackerState::Recovering => {
+                candidate.vel_y_history.clear();
+                Ok(None)
+            }
+            TrackerState::Searching => {
+                candidate.confirm_count = 0;
+                candidate.vel_y_history.clear();
+                Ok(None)
+            }
+        },
     }
 }
 
@@ -593,7 +679,6 @@ fn draw_ball_overlay(
 ) -> Result<(), opencv::Error> {
     match ball {
         Some(ref b) => {
-            // ── Thick circle around ball — hard to miss ───────────────
             imgproc::circle(
                 frame,
                 Point::new(b.px, b.py),
@@ -603,7 +688,6 @@ fn draw_ball_overlay(
                 imgproc::LINE_AA,
                 0,
             )?;
-            // Inner circle
             imgproc::circle(
                 frame,
                 Point::new(b.px, b.py),
@@ -613,7 +697,6 @@ fn draw_ball_overlay(
                 imgproc::LINE_AA,
                 0,
             )?;
-            // Center crosshair dot
             imgproc::circle(
                 frame,
                 Point::new(b.px, b.py),
@@ -624,7 +707,6 @@ fn draw_ball_overlay(
                 0,
             )?;
 
-            // ── Crosshair lines ───────────────────────────────────────
             imgproc::line(
                 frame,
                 Point::new(b.px - b.radius - 15, b.py),
@@ -662,14 +744,12 @@ fn draw_ball_overlay(
                 0,
             )?;
 
-            // ── Zone + distance label next to ball ────────────────────
             let zone_str = if b.is_three { "3PT" } else { "2PT" };
             let zone_color = if b.is_three {
-                Scalar::new(0.0, 200.0, 255.0, 0.0) // orange = 3PT
+                Scalar::new(0.0, 200.0, 255.0, 0.0)
             } else {
-                Scalar::new(0.0, 255.0, 140.0, 0.0) // green = 2PT
+                Scalar::new(0.0, 255.0, 140.0, 0.0)
             };
-            // Shadow for readability
             imgproc::put_text(
                 frame,
                 zone_str,
@@ -717,9 +797,7 @@ fn draw_ball_overlay(
                 false,
             )?;
 
-            // ── SHOT DETECTED — big bold banner above ball ────────────
             if b.smooth_vel_y < SHOT_RELEASE_VEL_Y {
-                // Dark background rectangle for readability
                 let text = "SHOT DETECTED";
                 let tx = (b.px - 95).max(5);
                 let ty = (b.py - b.radius - 35).max(40);
@@ -752,8 +830,6 @@ fn draw_ball_overlay(
                 )?;
             }
 
-            // ── Status bar top-left ───────────────────────────────────
-            // Green filled background when locked
             imgproc::rectangle(
                 frame,
                 opencv::core::Rect::new(5, 5, 220, 36),
@@ -782,7 +858,6 @@ fn draw_ball_overlay(
                 false,
             )?;
 
-            // ── Velocity debug line below status ──────────────────────
             let vel_str = format!("vy:{:.0} svy:{:.0}", b.vel_y, b.smooth_vel_y);
             imgproc::put_text(
                 frame,
@@ -812,7 +887,7 @@ fn draw_ball_overlay(
             imgproc::rectangle(
                 frame,
                 opencv::core::Rect::new(5, 5, 260, 36),
-                bg_color, // ← use variable
+                bg_color,
                 -1,
                 imgproc::LINE_AA,
                 0,
@@ -820,14 +895,14 @@ fn draw_ball_overlay(
             imgproc::rectangle(
                 frame,
                 opencv::core::Rect::new(5, 5, 260, 36),
-                border_color, // ← use variable
+                border_color,
                 2,
                 imgproc::LINE_AA,
                 0,
             )?;
             imgproc::put_text(
                 frame,
-                msg, // ← use variable
+                msg,
                 Point::new(12, 31),
                 imgproc::FONT_HERSHEY_DUPLEX,
                 0.6,
@@ -837,87 +912,6 @@ fn draw_ball_overlay(
                 false,
             )?;
         }
-    }
-    Ok(())
-}
-
-fn draw_shot_dots(frame: &mut Mat, shot_dots: &[ShotDot]) -> Result<(), opencv::Error> {
-    const DOT_COLOR_2PT_MAKE: (f64, f64, f64) = (0.0, 255.0, 140.0);
-    const DOT_COLOR_2PT_MISS: (f64, f64, f64) = (0.0, 80.0, 255.0);
-    const DOT_COLOR_3PT_MAKE: (f64, f64, f64) = (0.0, 220.0, 255.0);
-    const DOT_COLOR_3PT_MISS: (f64, f64, f64) = (60.0, 0.0, 255.0);
-    const DOT_RADIUS: i32 = 12;
-
-    for dot in shot_dots {
-        let (r, g, b) = match (dot.is_three, dot.made) {
-            (false, true) => DOT_COLOR_2PT_MAKE,
-            (false, false) => DOT_COLOR_2PT_MISS,
-            (true, true) => DOT_COLOR_3PT_MAKE,
-            (true, false) => DOT_COLOR_3PT_MISS,
-        };
-        imgproc::circle(
-            frame,
-            Point::new(dot.px, dot.py),
-            DOT_RADIUS,
-            Scalar::new(b, g, r, 0.0),
-            -1,
-            imgproc::LINE_AA,
-            0,
-        )?;
-        imgproc::circle(
-            frame,
-            Point::new(dot.px, dot.py),
-            DOT_RADIUS,
-            Scalar::new(255.0, 255.0, 255.0, 0.0),
-            1,
-            imgproc::LINE_AA,
-            0,
-        )?;
-        let label = format!("{:.0}ft", dot.dist_ft);
-        imgproc::put_text(
-            frame,
-            &label,
-            Point::new(dot.px + DOT_RADIUS + 3, dot.py + 4),
-            imgproc::FONT_HERSHEY_SIMPLEX,
-            0.4,
-            Scalar::new(255.0, 255.0, 255.0, 0.0),
-            1,
-            imgproc::LINE_AA,
-            false,
-        )?;
-    }
-    Ok(())
-}
-
-fn draw_legend(frame: &mut Mat) -> Result<(), opencv::Error> {
-    let items: &[(&str, (f64, f64, f64))] = &[
-        ("2PT Make", (0.0, 255.0, 140.0)),
-        ("2PT Miss", (0.0, 80.0, 255.0)),
-        ("3PT Make", (0.0, 220.0, 255.0)),
-        ("3PT Miss", (60.0, 0.0, 255.0)),
-    ];
-    for (i, (label, (r, g, b))) in items.iter().enumerate() {
-        let y = 55 + i as i32 * 22;
-        imgproc::circle(
-            frame,
-            Point::new(15, y),
-            6,
-            Scalar::new(*b, *g, *r, 0.0),
-            -1,
-            imgproc::LINE_AA,
-            0,
-        )?;
-        imgproc::put_text(
-            frame,
-            label,
-            Point::new(26, y + 5),
-            imgproc::FONT_HERSHEY_SIMPLEX,
-            0.42,
-            Scalar::new(220.0, 220.0, 220.0, 0.0),
-            1,
-            imgproc::LINE_AA,
-            false,
-        )?;
     }
     Ok(())
 }
@@ -979,7 +973,7 @@ fn process_heatmap_camera(
         .take()
         .expect("Failed to get heatmap stdin");
 
-    println!("C922x dual-stream started: heatmap + basketball @ 720p60");
+    println!("C922x stream started @ 720p60");
     println!(
         "Focal length: {:.1} (CALIB_PIXEL_DIAMETER={:.0})",
         focal_length(),
@@ -995,7 +989,6 @@ fn process_heatmap_camera(
 
         local_count += 1;
 
-        // Ball detection every N frames
         let ball = if local_count % HEATMAP_DETECT_EVERY_N_FRAMES == 0 {
             let last_ball = state.lock().unwrap().ball_position.clone();
             detect_ball(&frame, &last_ball, &mut ball_candidate).unwrap_or(None)
@@ -1003,13 +996,26 @@ fn process_heatmap_camera(
             state.lock().unwrap().ball_position.clone()
         };
 
-        // Update state
         {
             let mut s = state.lock().unwrap();
             s.heatmap_frame_count = local_count;
             s.ball_position = ball.clone();
 
             if let Some(ref b) = ball {
+                // Arc recording — capture trajectory during shot flight
+                if b.smooth_vel_y < SHOT_RELEASE_VEL_Y && !s.arc_recording {
+                    s.arc_recording = true;
+                    s.arc_buffer.clear();
+                    s.arc_buffer.push((b.px, b.py));
+                } else if s.arc_recording {
+                    s.arc_buffer.push((b.px, b.py));
+                    // Cap at 120 frames (~2s at 60fps) to prevent runaway
+                    if s.arc_buffer.len() > 120 {
+                        s.arc_recording = false;
+                        s.arc_buffer.clear();
+                    }
+                }
+
                 s.pending_zone = Some(b.is_three);
                 s.total_players_detected += 1;
                 s.current_players = vec![PlayerDetection {
@@ -1037,12 +1043,10 @@ fn process_heatmap_camera(
             }
         }
 
-        // Draw overlays
         if let Err(e) = draw_ball_overlay(&mut frame, &ball, &ball_candidate.state) {
             eprintln!("Ball overlay error: {}", e);
         }
 
-        // Encode and stream
         let mut buf = Vector::<u8>::new();
         let params =
             Vector::<i32>::from_slice(&[imgcodecs::IMWRITE_JPEG_QUALITY, JPEG_QUALITY_HEATMAP]);
@@ -1104,6 +1108,15 @@ fn listen_to_esp32(state: Arc<Mutex<GameState>>) {
                                 s.make_count += 1;
                                 s.backboard_make_count += 1;
                                 s.last_serial_event_ms = now_ms;
+
+                                // ── Arc + entry angle on MAKE ─────────────
+                                // process_arc computes both launch angle and
+                                // entry angle from the recorded trajectory,
+                                // updates rolling averages, and clears buffer.
+                                if s.arc_recording || !s.arc_buffer.is_empty() {
+                                    process_arc(&mut s);
+                                }
+
                                 let zone = s.pending_zone;
                                 s.record_shot_with_zone(true, "Make", 1280, 720, zone);
                                 println!("Make! total {}", s.make_count);
@@ -1111,6 +1124,14 @@ fn listen_to_esp32(state: Arc<Mutex<GameState>>) {
                                 s.make_count += 1;
                                 s.swish_count += 1;
                                 s.last_serial_event_ms = now_ms;
+
+                                // ── Arc + entry angle on SWISH ────────────
+                                // Swishes are clean makes — excellent arc data.
+                                // Same computation as MAKE.
+                                if s.arc_recording || !s.arc_buffer.is_empty() {
+                                    process_arc(&mut s);
+                                }
+
                                 let zone = s.pending_zone;
                                 s.record_shot_with_zone(true, "Swish", 1280, 720, zone);
                                 println!("Swish! total {}", s.make_count);
@@ -1118,6 +1139,9 @@ fn listen_to_esp32(state: Arc<Mutex<GameState>>) {
                                 s.backboard_count += 1;
                                 s.backboard_miss_count += 1;
                                 s.last_serial_event_ms = now_ms;
+                                // Backboard miss — discard arc, don't update averages
+                                s.arc_recording = false;
+                                s.arc_buffer.clear();
                                 let zone = s.pending_zone;
                                 s.record_shot_with_zone(false, "Backboard Miss", 1280, 720, zone);
                                 println!("Backboard miss: total {}", s.backboard_count);
@@ -1128,6 +1152,9 @@ fn listen_to_esp32(state: Arc<Mutex<GameState>>) {
                             } else if data.starts_with("AIRBALL:") {
                                 s.airball_count += 1;
                                 s.last_serial_event_ms = now_ms;
+                                // Airball — discard arc, shot didn't reach basket
+                                s.arc_recording = false;
+                                s.arc_buffer.clear();
                                 s.record_shot(false, "Airball", 1280, 720);
                                 println!("Airball (ESP32)! total: {}", s.airball_count);
                             }
@@ -1142,9 +1169,6 @@ fn listen_to_esp32(state: Arc<Mutex<GameState>>) {
 }
 
 // ── Airball watcher ───────────────────────────────────────────────────
-// Watches ball velocity for a shot release signature (ball moving upward fast).
-// Starts a 5-second window waiting for ESP32 confirmation.
-// If no MAKE/SWISH/BACK/RIM fires within 5s → classified as AIRBALL.
 
 fn start_airball_watcher(state: Arc<Mutex<GameState>>) {
     thread::spawn(move || {
@@ -1161,7 +1185,7 @@ fn start_airball_watcher(state: Arc<Mutex<GameState>>) {
         let mut release_zone: Option<bool> = None;
 
         loop {
-            thread::sleep(Duration::from_millis(50)); // 20hz check
+            thread::sleep(Duration::from_millis(50));
             let now_ms = get_timestamp();
 
             let (ball, last_serial) = {
@@ -1172,29 +1196,11 @@ fn start_airball_watcher(state: Arc<Mutex<GameState>>) {
             match watch_state {
                 WatchState::Idle => {
                     if let Some(ref b) = ball {
-                        // ── Shot release conditions (ALL must be true) ────────────────
-                        //
-                        // 1. Ball moving upward fast enough to be a shot arc
                         let moving_up = b.smooth_vel_y < SHOT_RELEASE_VEL_Y;
-
-                        // 2. Not a lateral pass — must be mostly vertical movement
                         let not_a_pass = b.vel_x.abs() < SHOT_RELEASE_VEL_X_MAX;
-
-                        // 3. Ball must be in shooting zone — not right under the basket.
-                        //    Under the basket = lower portion of frame (high py value).
-                        //    A shot is released from mid-to-far distance, so ball should
-                        //    be in the middle or far half of the frame vertically.
                         let not_under_basket = b.py < 480;
-
-                        // 4. Ball must be at a shootable distance from camera.
-                        //    Anything under 4ft is right under/at the basket — not a shot.
                         let shootable_distance = b.distance_ft > 4.0;
-
-                        // 5. Ball must have been moving consistently upward — not just
-                        //    a single noisy frame. Check velocity magnitude is significant.
                         let strong_upward = b.smooth_vel_y < -220.0;
-
-                        // 6. Cooldown between shot detections — ignore re-triggers
                         let cooldown_ok =
                             now_ms.saturating_sub(last_airball_ms) > AIRBALL_COOLDOWN_MS;
 
@@ -1221,21 +1227,20 @@ fn start_airball_watcher(state: Arc<Mutex<GameState>>) {
                 WatchState::WaitingForEsp32 => {
                     let elapsed = now_ms.saturating_sub(release_ms);
 
-                    // ESP32 fired after release → normal shot result, cancel airball
                     if last_serial > serial_at_release {
                         println!("ESP32 confirmed shot — cancelling airball timer");
                         watch_state = WatchState::Idle;
                         continue;
                     }
 
-                    // 5 second window expired with no ESP32 event → AIRBALL
                     if elapsed >= AIRBALL_WAIT_MS {
                         let cooldown_ok =
                             now_ms.saturating_sub(last_airball_ms) > AIRBALL_COOLDOWN_MS;
-
                         if cooldown_ok {
                             let mut s = state.lock().unwrap();
                             s.airball_count += 1;
+                            s.arc_recording = false;
+                            s.arc_buffer.clear();
                             s.record_shot_with_zone(false, "Airball", 1280, 720, release_zone);
                             println!(
                                 "AIRBALL! zone:{} total:{}",
@@ -1248,7 +1253,6 @@ fn start_airball_watcher(state: Arc<Mutex<GameState>>) {
                             );
                             last_airball_ms = now_ms;
                         }
-
                         watch_state = WatchState::Idle;
                     }
                 }
@@ -1313,7 +1317,13 @@ fn send_to_cloud_api(state: Arc<Mutex<GameState>>, frames: Arc<FrameStore>, api_
                     "shot_chart": s.shot_chart,
                     "basketball_frame": "",
                     "heatmap_frame": general_purpose::STANDARD.encode(&h_frame),
-                    "timestamp": get_timestamp()
+                    "timestamp": get_timestamp(),
+                    // ── Arc / trajectory metrics ──────────────────────
+                    "avg_arc": s.avg_arc_angle,
+                    "last_arc_angle": s.last_arc_angle,
+                    "arc_shot_count": s.arc_shot_count,
+                    "avg_entry_angle": s.avg_entry_angle,
+                    "last_entry_angle": s.last_entry_angle,
                 })
             };
 
@@ -1334,7 +1344,7 @@ fn send_to_cloud_api(state: Arc<Mutex<GameState>>, frames: Arc<FrameStore>, api_
 
 fn main() -> Result<(), opencv::Error> {
     println!("========================================");
-    println!("HOOP IQ - C922x Dual Stream 720p@60fps");
+    println!("HOOP IQ - C922x Single Stream 720p@60fps");
     println!("CECS490 Senior Project - Team 2");
     println!("========================================\n");
     println!("Ball distance estimation active.");
@@ -1403,7 +1413,7 @@ fn main() -> Result<(), opencv::Error> {
         cloud_api_url,
     );
 
-    println!("Starting C922x dual-stream thread...");
+    println!("Starting C922x stream thread...");
     let state_h = Arc::clone(&game_state);
     let frames_h = Arc::clone(&frame_store);
     thread::spawn(move || {
