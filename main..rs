@@ -164,6 +164,7 @@ struct GameState {
     pending_zone: Option<bool>,
     airball_count: u32,
     last_serial_event_ms: u64,
+    ball_detected: u8,
     // ── Arc / trajectory tracking ─────────────────────────────────────
     arc_buffer: Vec<(i32, i32)>, // (px, py) positions during shot flight
     arc_recording: bool,         // true = currently recording a shot arc
@@ -205,6 +206,7 @@ impl GameState {
             last_arc_angle: 0.0,
             avg_entry_angle: 0.0,
             last_entry_angle: 0.0,
+            ball_detected: 0,
         }
     }
 
@@ -1002,6 +1004,7 @@ fn process_heatmap_camera(
             s.ball_position = ball.clone();
 
             if let Some(ref b) = ball {
+                s.ball_detected = 1;
                 // Arc recording — capture trajectory during shot flight
                 if b.smooth_vel_y < SHOT_RELEASE_VEL_Y && !s.arc_recording {
                     s.arc_recording = true;
@@ -1028,6 +1031,7 @@ fn process_heatmap_camera(
                 }];
             } else {
                 s.current_players.clear();
+                s.ball_detected = 0;
             }
 
             frame_times.push_back(Instant::now());
@@ -1307,7 +1311,7 @@ fn send_to_cloud_api(state: Arc<Mutex<GameState>>, frames: Arc<FrameStore>, api_
                     "three_pt_attempts": s.three_pt_attempts,
                     "shot_dots": s.shot_dots,
                     "last_shot_type": s.last_shot_type,
-                    "ball_detected": if s.ball_position.is_some() { 1 } else { 0 },
+                    "ball_detected": s.ball_detected,
                     "ball_zone": ball_zone,
                     "ball_dist_ft": ball_dist_ft,
                     "trajectories": 0,
