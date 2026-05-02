@@ -44,6 +44,7 @@ def get_stats():
             "streak": latest_data['streak'],
             "avg_arc": latest_data['avg_arc'],
             "avg_entry_angle": latest_data['avg_entry_angle'],
+            "ball_detected": latest_data['ball_detected'],
             "ball_zone": latest_data['ball_zone'],       
             "ball_dist_ft": latest_data['ball_dist_ft'], 
             "airballs": latest_data['airballs'],         
