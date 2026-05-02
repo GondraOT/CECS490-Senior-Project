@@ -24,12 +24,12 @@ const HEATMAP_DETECT_EVERY_N_FRAMES: u64 = 1;
 const JPEG_QUALITY_HEATMAP: i32 = 75;
 
 // ── Ball HSV color range (tune at your venue) ─────────────────────────
-const BALL_H_MIN: f64 = 8.0;
-const BALL_H_MAX: f64 = 25.0;
-const BALL_S_MIN: f64 = 90.0;
+const BALL_H_MIN: f64 = 5.0;
+const BALL_H_MAX: f64 = 30.0;
+const BALL_S_MIN: f64 = 60.0;
 const BALL_S_MAX: f64 = 255.0;
-const BALL_V_MIN: f64 = 50.0;
-const BALL_V_MAX: f64 = 230.0;
+const BALL_V_MIN: f64 = 80.0;
+const BALL_V_MAX: f64 = 255.0;
 const BALL_MIN_RADIUS_PX: i32 = 8;
 const BALL_MAX_RADIUS_PX: i32 = 250;
 const BALL_LOST_TIMEOUT_MS: u64 = 3000;
