@@ -19,22 +19,22 @@ latest_data = {
     "backboard_misses": 0,      # ← ADD
     "rim_hits": 0,
     "swishes": 0,
-    "airballs": 0,              # ← ADD
+    "airballs": 0,             
     "streak": 0,
-    "fg_percent": "0.0",        # ← ADD
-    "two_pt_makes": 0,          # ← ADD
-    "two_pt_attempts": 0,       # ← ADD
-    "three_pt_makes": 0,        # ← ADD
-    "three_pt_attempts": 0,     # ← ADD
+    "fg_percent": "0.0",        
+    "two_pt_makes": 0,          
+    "two_pt_attempts": 0,       
+    "three_pt_makes": 0,        
+    "three_pt_attempts": 0,     
     "avg_arc": 0.0,
-    "avg_entry_angle": 0.0,     # ← change None to 0.0 so it serializes cleanly
+    "avg_entry_angle": 0.0,    
     "last_arc_angle": 0.0,
-    "last_entry_angle": 0.0,    # ← ADD
+    "last_entry_angle": 0.0,    
     "arc_shot_count": 0,
-    "ball_zone": "--",          # ← ADD
-    "ball_dist_ft": "--",       # ← ADD
+    "ball_zone": "--",          
+    "ball_dist_ft": "--",      
     "shot_chart": [],
-    "shot_dots": [],            # ← ADD (used by website shot chart)
+    "shot_dots": [],            
     "heatmap_fps": 0.0,
     "current_players": 0,
     "total_players_detected": 0,
