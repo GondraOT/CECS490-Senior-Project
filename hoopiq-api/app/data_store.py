@@ -31,7 +31,7 @@ latest_data = {
     "last_arc_angle": 0.0,
     "last_entry_angle": 0.0,    
     "arc_shot_count": 0,
-    "ball_detected": 0,
+    "ball_detected": 0, # new add
     "ball_zone": "--",          
     "ball_dist_ft": "--",      
     "shot_chart": [],
