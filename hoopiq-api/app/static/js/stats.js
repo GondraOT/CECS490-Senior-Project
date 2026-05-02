@@ -63,9 +63,15 @@ function downloadFile(content, filename, type) {
 }
 
 function normalizeShotType(shot) {
-    if (shot.points === 3 || shot.shot_value === 3 || shot.shot_type === '3PT' || shot.shot_type === '3pt') {
+    if (
+        shot.points === 3 ||
+        shot.shot_value === 3 ||
+        shot.shot_type === '3PT' ||
+        shot.shot_type === '3pt'
+    ) {
         return '3PT';
     }
+
     return '2PT';
 }
 
@@ -109,6 +115,18 @@ async function updateStats() {
 
         const b = d.basketball || {};
         const h = d.heatmap || {};
+
+        const ballCount =
+            b.ball_count ??
+            b.current_balls ??
+            b.balls_detected ??
+            h.ball_count ??
+            h.current_balls ??
+            h.balls_detected ??
+            h.current_players ??
+            0;
+
+        setText('h-players-badge', ballCount + (ballCount === 1 ? ' ball' : ' balls'));
 
         let backendShots = b.shot_chart || [];
         let shotsToRender = [];
@@ -229,7 +247,7 @@ async function updateStats() {
 
         setText('players', fmt(h.current_players));
 
-        setText('avg-arc',   b.avg_arc         != null ? parseFloat(b.avg_arc).toFixed(1)         + '°' : '--');
+        setText('avg-arc', b.avg_arc != null ? parseFloat(b.avg_arc).toFixed(1) + '°' : '--');
         setText('avg-entry', b.avg_entry_angle != null ? parseFloat(b.avg_entry_angle).toFixed(1) + '°' : '--');
         setText('ball-detected', b.ball_detected ?? '--');
 
@@ -247,6 +265,7 @@ async function updateStats() {
         if (statusDotEl) statusDotEl.className = 'status-dot';
 
         setText('status-text', 'Offline');
+        setText('h-players-badge', '0 balls');
 
         if (typeof isSessionTimerRunning === 'function' && isSessionTimerRunning()) {
             stopSessionTimer();
@@ -284,12 +303,14 @@ function updateShotTable(shots) {
 
     for (let i = pageShots.length; i < shotsPerPage; i++) {
         const row = document.createElement('tr');
+
         row.innerHTML = `
             <td>${start + i + 1}</td>
             <td>—</td>
             <td>—</td>
             <td>—</td>
         `;
+
         tbody.appendChild(row);
     }
 
@@ -430,6 +451,7 @@ function resetAllData() {
     setText('three-pct', '--');
     setText('streak', '--');
     setText('airballs', '--');
+    setText('h-players-badge', '0 balls');
 }
 
 function renderAll(shots) {
@@ -438,6 +460,7 @@ function renderAll(shots) {
 
     try {
         if (!Array.isArray(shots)) shots = [];
+
         updateShotTable(shots);
 
         if (typeof drawShotChart === 'function') drawShotChart(shots);
