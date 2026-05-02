@@ -15,8 +15,8 @@ latest_data = {
     "attempts": 0,
     "trajectories": 0,
     "backboard_hits": 0,
-    "backboard_makes": 0,       # ← ADD
-    "backboard_misses": 0,      # ← ADD
+    "backboard_makes": 0,       
+    "backboard_misses": 0,      
     "rim_hits": 0,
     "swishes": 0,
     "airballs": 0,             
@@ -31,6 +31,7 @@ latest_data = {
     "last_arc_angle": 0.0,
     "last_entry_angle": 0.0,    
     "arc_shot_count": 0,
+    "ball_detected": 0,
     "ball_zone": "--",          
     "ball_dist_ft": "--",      
     "shot_chart": [],
