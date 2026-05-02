@@ -249,7 +249,6 @@ async function updateStats() {
 
         setText('avg-arc', b.avg_arc != null ? parseFloat(b.avg_arc).toFixed(1) + '°' : '--');
         setText('avg-entry', b.avg_entry_angle != null ? parseFloat(b.avg_entry_angle).toFixed(1) + '°' : '--');
-        setText('ball-detected', b.ball_detected ?? '--');
 
         const arcStreakBadge = document.getElementById('arc-streak-badge');
         if (arcStreakBadge) arcStreakBadge.textContent = 'Streak: ' + fmt(computedStats.streak);
