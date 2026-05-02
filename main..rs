@@ -1307,6 +1307,7 @@ fn send_to_cloud_api(state: Arc<Mutex<GameState>>, frames: Arc<FrameStore>, api_
                     "three_pt_attempts": s.three_pt_attempts,
                     "shot_dots": s.shot_dots,
                     "last_shot_type": s.last_shot_type,
+                    "ball_detected": if s.ball_position.is_some() { 1 } else { 0 },
                     "ball_zone": ball_zone,
                     "ball_dist_ft": ball_dist_ft,
                     "trajectories": 0,
