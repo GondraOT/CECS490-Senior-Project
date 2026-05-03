@@ -127,8 +127,13 @@ function drawShotChart(shotData) {
     let misses = 0;
 
     shotData.forEach(shot => {
-        const x = toCanvasX((shot.x - 50) * (COURT_W / 100));
-        const y = toCanvasY(shot.y * (COURT_L / 100));
+    // Use dist_ft to place dot on court (distance from camera = distance from baseline)
+       const distFt = shot.dist_ft || 15.0;
+       const courtY = Math.min(distFt, COURT_L);  // clamp to court length
+    
+       const x = toCanvasX((shot.x - 50) * (COURT_W / 100));  // keep x as-is
+       const y = toCanvasY(courtY);
+       
         const made = shot.made;
         const isSwish = shot.shot_type === 'Swish';
 
