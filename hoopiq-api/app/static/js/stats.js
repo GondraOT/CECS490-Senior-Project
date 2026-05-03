@@ -84,7 +84,7 @@ function normalizeShotQuality(shot) {
     if (type.includes('Backboard')) return 'Backboard';
     if (type === 'Airball') return 'Airball';
 
-    return 'Standard';
+    return 'Bank';
 }
 
 // Main Stats Function
