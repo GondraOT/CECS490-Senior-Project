@@ -25,13 +25,13 @@ const JPEG_QUALITY_HEATMAP: i32 = 75;
 
 // ── Ball HSV color range (tune at your venue) ─────────────────────────
 const BALL_H_MIN: f64 = 5.0;
-const BALL_H_MAX: f64 = 30.0;
-const BALL_S_MIN: f64 = 60.0;
+const BALL_H_MAX: f64 = 18.0;
+const BALL_S_MIN: f64 = 130.0;
 const BALL_S_MAX: f64 = 255.0;
-const BALL_V_MIN: f64 = 80.0;
-const BALL_V_MAX: f64 = 255.0;
-const BALL_MIN_RADIUS_PX: i32 = 8;
-const BALL_MAX_RADIUS_PX: i32 = 250;
+const BALL_V_MIN: f64 = 40.0;
+const BALL_V_MAX: f64 = 180.0;
+const BALL_MIN_RADIUS_PX: i32 = 20;
+const BALL_MAX_RADIUS_PX: i32 = 350;
 const BALL_LOST_TIMEOUT_MS: u64 = 3000;
 
 // ── Ball tracker reliability ──────────────────────────────────────────
@@ -51,9 +51,9 @@ const THREE_PT_DISTANCE_INCHES: f64 = 333.0;
 
 // ── Airball / shot release detection ─────────────────────────────────
 const SHOT_RELEASE_VEL_Y: f32 = -220.0;
-const SHOT_RELEASE_VEL_X_MAX: f32 = 300.0;
-const AIRBALL_WAIT_MS: u64 = 5000;
-const AIRBALL_COOLDOWN_MS: u64 = 4000;
+const SHOT_RELEASE_VEL_X_MAX: f32 = 200.0; // was 300
+const AIRBALL_WAIT_MS: u64 = 6000; // was 5 seconds
+const AIRBALL_COOLDOWN_MS: u64 = 6000; // was 4
 
 // ── Structs ───────────────────────────────────────────────────────────
 
@@ -498,7 +498,7 @@ fn detect_ball(
     for i in 0..contours.len() {
         let contour = contours.get(i)?;
         let area = imgproc::contour_area(&contour, false)?;
-        if area < 200.0 {
+        if area < 800.0 {
             continue;
         }
 
@@ -530,7 +530,7 @@ fn detect_ball(
         }
 
         if candidate.state == TrackerState::Searching {
-            if circularity < 0.30 {
+            if circularity < 0.55 {
                 continue;
             }
         }
