@@ -75,6 +75,7 @@ struct ShotEntry {
     zone: String,
     shot_type: String,
     timestamp: u64,
+    dist_ft: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -165,6 +166,7 @@ struct GameState {
     airball_count: u32,
     last_serial_event_ms: u64,
     ball_detected: u8,
+    pending_dist_ft: f64,
     // ── Arc / trajectory tracking ─────────────────────────────────────
     arc_buffer: Vec<(i32, i32)>, // (px, py) positions during shot flight
     arc_recording: bool,         // true = currently recording a shot arc
@@ -207,6 +209,7 @@ impl GameState {
             avg_entry_angle: 0.0,
             last_entry_angle: 0.0,
             ball_detected: 0,
+            pending_dist_ft: 15.0,
         }
     }
 
@@ -226,11 +229,16 @@ impl GameState {
             (
                 ball.px,
                 ball.py,
-                ball.distance_ft,
+                self.pending_dist_ft,
                 zone_override.unwrap_or(ball.is_three),
             )
         } else {
-            (frame_width / 2, frame_height / 2, 15.0, false)
+            (
+                frame_width / 2,
+                frame_height / 2,
+                self.pending_dist_ft,
+                false,
+            )
         };
 
         if is_three {
@@ -275,6 +283,7 @@ impl GameState {
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_millis() as u64,
+            dist_ft: distance_ft,
         });
         if self.shot_chart.len() > 500 {
             self.shot_chart.remove(0);
@@ -1020,6 +1029,7 @@ fn process_heatmap_camera(
                 }
 
                 s.pending_zone = Some(b.is_three);
+                s.pending_dist_ft = b.distance_ft;
                 s.total_players_detected += 1;
                 s.current_players = vec![PlayerDetection {
                     id: get_timestamp(),
