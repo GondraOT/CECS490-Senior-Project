@@ -128,7 +128,7 @@ function drawShotChart(shotData) {
 
     shotData.forEach(shot => {
     // Use dist_ft to place dot on court (distance from camera = distance from baseline)
-       const distFt = shot.dist_ft || 15.0;
+       const distFt = (shot.dist_ft || 15.0) + 3.0;
        const courtY = Math.min(distFt, COURT_L);  // clamp to court length
     
        const x = toCanvasX((shot.x - 50) * (COURT_W / 100));  // keep x as-is
