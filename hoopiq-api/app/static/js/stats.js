@@ -87,6 +87,17 @@ function normalizeShotQuality(shot) {
     return 'Bank';
 }
 
+function getShotQualityClass(shot) {
+    const q = (normalizeShotQuality(shot) || '').toLowerCase();
+
+    if (q === 'swish') return 'quality-swish';
+    if (q === 'bank') return 'quality-bank';
+    if (q === 'backboard') return 'quality-backboard';
+    if (q === 'airball') return 'quality-airball';
+
+    return 'quality-standard';
+}
+
 // Main Stats Function
 async function updateStats() {
     try {
@@ -289,12 +300,13 @@ function updateShotTable(shots) {
         const resultClass = shot.made ? 'make' : 'miss';
         const shotType = normalizeShotType(shot);
         const shotQuality = normalizeShotQuality(shot);
+        const qualityClass = getShotQualityClass(shot);
 
         row.innerHTML = `
             <td>${start + index + 1}</td>
             <td class="${resultClass}">${result}</td>
             <td>${shotType}</td>
-            <td>${shotQuality}</td>
+            <td class="${qualityClass}">${shotQuality}</td>
         `;
 
         tbody.appendChild(row);
