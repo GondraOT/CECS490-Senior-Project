@@ -13,4 +13,4 @@ The system was fully integrated and demonstrated across three subsystem demos an
 
 website https://www.hoopiq.shop/
 
-[View Full Timeline](https://gondraot.github.io/CECS490-Senior-Project/docs/timeline.html)
+[Full Timeline](https://gondraot.github.io/CECS490-Senior-Project/docs/timeline.html)
